@@ -45,7 +45,9 @@ Godot 4.5 runs natively, so it separates driver and scene cost from FEX and vkd3
 
 ## Mesa merge request
 
-The RFC text is in [mesa/MERGE_REQUEST.md](mesa/MERGE_REQUEST.md). Opening it still needs a Freedesktop GitLab fork of [mesa/mesa](https://gitlab.freedesktop.org/mesa/mesa). This repository is the public record until that request exists.
+Draft: https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/44876
+
+The RFC text is in [mesa/MERGE_REQUEST.md](mesa/MERGE_REQUEST.md). The branch `turnip-rfc-a740-sparse-image` is commit `23bd860` on current main `8fc4981d`. The tested parent was `ea47b35c`. It is a draft, and it should not be merged as a conformance change.
 
 ## License
 
