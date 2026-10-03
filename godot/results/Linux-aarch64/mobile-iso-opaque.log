@@ -1,0 +1,142 @@
+Godot Engine v4.5.stable.official.876b29033 - https://godotengine.org
+Vulkan 1.4.354 - Forward Mobile - Using Device #0: Qualcomm - Turnip Adreno (TM) 740
+[1;31mERROR:[0;91m FSR2 is only available when using the Forward+ renderer.
+[0;90m   at: viewport_set_scaling_3d_mode (servers/rendering/renderer_viewport.cpp:980)[0m
+[1;33mWARNING:[0;93m Screen-space ambient occlusion (SSAO) can only be enabled when using the Forward+ renderer.
+[0;90m     at: environment_set_ssao (servers/rendering/storage/environment_storage.cpp:586)[0m
+[0;90m     GDScript backtrace (most recent call first):
+         [0] apply_graphics_settings (res://menu/settings.gd:91)
+         [1] _ready (res://level/level.gd:20)
+         [2] change_scene_to_packed (res://main/main.gd:41)
+         [3] _ready (res://main/main.gd:16)[0m
+[1;33mWARNING:[0;93m Volumetric fog can only be enabled when using the Forward+ renderer.
+[0;90m     at: environment_set_volumetric_fog (servers/rendering/storage/environment_storage.cpp:344)[0m
+[0;90m     GDScript backtrace (most recent call first):
+         [0] apply_graphics_settings (res://menu/settings.gd:107)
+         [1] _ready (res://level/level.gd:20)
+         [2] change_scene_to_packed (res://main/main.gd:41)
+         [3] _ready (res://main/main.gd:16)[0m
+BENCHMARK_READY renderer=mobile driver=vulkan size=1280x720 window=1280x720 seed=20261002 warmup_sec=8.0 measure_sec=20.0
+BENCH_ISOLATE pass=opaque shade= geo= hidden_meshes=139 mixed_meshes=73
+GPU PROFILE (total 0.0ms): 
+GPU PROFILE (total 0.0ms): 
+GPU PROFILE (total 0.0ms): 
+GPU PROFILE (total 0.0ms): 
+GPU PROFILE (total 0.0ms): 
+GPU PROFILE (total 0.0ms): 
+GPU PROFILE (total 0.0ms): 
+BENCHMARK_MEASURE_START
+GPU PROFILE (total 6.839ms): 
+	-Render Opaque + Transparent: 3.21992396101167ms
+	-Tonemap: 0.32910132106346ms
+	-Glow: 0.11235442342637ms
+GPU PROFILE (total 6.834ms): 
+	-Setup 3D Scene: 0.01374454567902ms
+	-Render Opaque + Transparent: 6.16761323135265ms
+	-Tonemap: 0.59467833581632ms
+	-Glow: 0.20274475543168ms
+GPU PROFILE (total 11.699ms): 
+	-Cull 3D Scene: 0.02017742010855ms
+	-Setup 3D Scene: 0.01633872332111ms
+	-Render Opaque + Transparent: 6.89361178490423ms
+	-Tonemap: 0.5943063920544ms
+	-Glow: 0.20115327835083ms
+GPU PROFILE (total 8.316ms): 
+	-Cull 3D Scene: 0.10963831556604ms
+	-Setup 3D Scene: 0.02363830170733ms
+	-Render Opaque + Transparent: 9.41412743101729ms
+	-Tonemap: 0.5910850281411ms
+	-Glow: 0.20056391776876ms
+GPU PROFILE (total 11.313ms): 
+	-Cull 3D Scene: 0.08852210087059ms
+	-Setup 3D Scene: 0.0220442451207ms
+	-Render Opaque + Transparent: 7.63189211144912ms
+	-Tonemap: 0.59179646989941ms
+	-Glow: 0.20051328270836ms
+GPU PROFILE (total 11.435ms): 
+	-Cull 3D Scene: 0.10524704877068ms
+	-Setup 3D Scene: 0.02264705405516ms
+	-Render Opaque + Transparent: 10.6372817095588ms
+	-Tonemap: 0.59115281946519ms
+	-Glow: 0.20130595038919ms
+GPU PROFILE (total 10.996ms): 
+	-Cull 3D Scene: 0.08244316686283ms
+	-Setup 3D Scene: 0.02196591279723ms
+	-Render Opaque + Transparent: 10.2278511740945ms
+	-Tonemap: 0.59045449170199ms
+	-Glow: 0.20051136883822ms
+GPU PROFILE (total 10.058ms): 
+	-Cull 3D Scene: 0.07773118378014ms
+	-Setup 3D Scene: 0.02033333880927ms
+	-Render Opaque + Transparent: 9.60109587638609ms
+	-Tonemap: 0.59064508253528ms
+	-Glow: 0.20034406518423ms
+GPU PROFILE (total 9.691ms): 
+	-Cull 3D Scene: 0.07114999771118ms
+	-Setup 3D Scene: 0.01954000353813ms
+	-Render Opaque + Transparent: 8.81280944824219ms
+	-Tonemap: 0.59083999633789ms
+	-Glow: 0.20056005477905ms
+GPU PROFILE (total 9.526ms): 
+	-Cull 3D Scene: 0.07214140651202ms
+	-Setup 3D Scene: 0.02012121556985ms
+	-Render Opaque + Transparent: 8.9007568359375ms
+	-Tonemap: 0.59140411531082ms
+	-Glow: 0.2018081395313ms
+GPU PROFILE (total 8.727ms): 
+	-Cull 3D Scene: 0.06814424349711ms
+	-Setup 3D Scene: 0.01749038237792ms
+	-Render Opaque + Transparent: 8.38802924522987ms
+	-Tonemap: 0.59240377866305ms
+	-Glow: 0.20082701169527ms
+GPU PROFILE (total 7.685ms): 
+	-Cull 3D Scene: 0.0640521671461ms
+	-Setup 3D Scene: 0.01704347133636ms
+	-Render Opaque + Transparent: 7.48120966372283ms
+	-Tonemap: 0.59271280039912ms
+	-Glow: 0.20136532990829ms
+GPU PROFILE (total 9.836ms): 
+	-Cull 3D Scene: 0.03955372108901ms
+	-Setup 3D Scene: 0.01711570132862ms
+	-Render Opaque + Transparent: 7.09138778812629ms
+	-Tonemap: 0.59185910816035ms
+	-Glow: 0.20144629675495ms
+GPU PROFILE (total 9.462ms): 
+	-Setup 3D Scene: 0.01676237347102ms
+	-Render Opaque + Transparent: 8.81096022199876ms
+	-Tonemap: 0.59097029431031ms
+	-Glow: 0.20106936917447ms
+GPU PROFILE (total 7.536ms): 
+	-Setup 3D Scene: 0.01707407169872ms
+	-Render Opaque + Transparent: 8.11474044234664ms
+	-Tonemap: 0.59171291633889ms
+	-Glow: 0.20217588212755ms
+GPU PROFILE (total 7.535ms): 
+	-Setup 3D Scene: 0.01436508269537ms
+	-Render Opaque + Transparent: 6.8041018531436ms
+	-Tonemap: 0.59153154161241ms
+	-Glow: 0.20132552252875ms
+[1;33mWARNING:[0;93m [Physics interpolation] Interpolated Camera3D triggered from outside physics process: "/root/main/Level/BenchmarkCamera" (possibly benign).
+[0;90m     at: _notification (scene/3d/camera_3d.cpp:205)[0m
+GPU PROFILE (total 7.412ms): 
+	-Setup 3D Scene: 0.01383722198102ms
+	-Render Opaque + Transparent: 6.63444294301114ms
+	-Tonemap: 0.59218579669331ms
+	-Glow: 0.20168224600858ms
+GPU PROFILE (total 6.29ms): 
+	-Setup 3D Scene: 0.01339161646116ms
+	-Render Opaque + Transparent: 5.89644681490385ms
+	-Tonemap: 0.59159392243499ms
+	-Glow: 0.20132178193206ms
+GPU PROFILE (total 5.353ms): 
+	-Setup 3D Scene: 0.01256707383365ms
+	-Render Opaque + Transparent: 4.97388402427115ms
+	-Tonemap: 0.59307875284335ms
+	-Glow: 0.20209156594625ms
+GPU PROFILE (total 6.516ms): 
+	-Setup 3D Scene: 0.0125573801864ms
+	-Render Opaque + Transparent: 4.36838752454747ms
+	-Tonemap: 0.59273116314997ms
+	-Glow: 0.20190717353195ms
+FRAME_STATS visible_draws=208 visible_prims=502469 visible_objs=208 shadow_draws=0 shadow_prims=0 shadow_objs=0 gpu_ms=5.985 cpu_ms=0.671
+BENCHMARK_DONE {"driver":"vulkan","frames":2364,"gi":2,"height":720,"max_ms":20.797,"min_ms":4.062,"p50_ms":8.0,"p95_ms":11.709,"render_height":720,"render_width":1280,"renderer":"mobile","scale":1.0,"seed":20261002,"width":1280,"window_height":1080,"window_width":1920}

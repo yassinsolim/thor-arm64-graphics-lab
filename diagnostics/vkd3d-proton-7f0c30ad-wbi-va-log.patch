@@ -1,0 +1,44 @@
+--- libs/vkd3d/resource.c	2026-09-22 08:36:00
++++ libs/vkd3d/resource.c	2026-10-01 16:58:42
+@@ -2676,6 +2676,15 @@
+ 
+     TRACE("iface %p, va #%"PRIx64"\n", iface, resource->res.va);
+ 
++    /* Addresses below the 64 KiB placement alignment are not a normal D3D12 buffer VA.
++     * Proton release builds strip TRACE, so this stays at WARN. */
++    if (resource->res.va < D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT)
++    {
++        WARN("GetGPUVirtualAddress low va %#"PRIx64", dim %u, width %"PRIu64", size %#"PRIx64", flags %#x.\n",
++                resource->res.va, resource->desc.Dimension, resource->desc.Width,
++                resource->res.size, resource->desc.Flags);
++    }
++
+     return resource->res.va;
+ }
+ 
+--- libs/vkd3d/memory.c	2026-09-22 08:36:00
++++ libs/vkd3d/memory.c	2026-10-01 16:59:20
+@@ -1618,6 +1618,9 @@
+                      "which is not aligned as expected. "
+                      "If application relies on this alignment, weird things might happen.\n",
+                      required_alignment, allocation->resource.va + allocation->realignment_offset);
++                WARN("BDA align detail: flags %#x, raw_va %#"PRIx64", realign %#"PRIx64", required %#"PRIx64", padded %u, host %u.\n",
++                        allocation->flags, allocation->resource.va, allocation->realignment_offset,
++                        required_alignment, padded_bda, info->host_ptr != NULL);
+             }
+         }
+     }
+--- libs/vkd3d/command.c	2026-09-22 08:36:00
++++ libs/vkd3d/command.c	2026-10-01 16:58:46
+@@ -19938,7 +19938,10 @@
+     {
+         if (!(resource = vkd3d_va_map_deref(&list->device->memory_allocator.va_map, parameters[i].Dest)))
+         {
+-            d3d12_command_list_mark_as_invalid(list, "Invalid target address %p.\n", parameters[i].Dest);
++            d3d12_command_list_mark_as_invalid(list,
++                    "Invalid target address %p, value %#x, mode %u, count %u, index %u.\n",
++                    parameters[i].Dest, parameters[i].Value,
++                    modes ? (unsigned int)modes[i] : 0, count, i);
+             return;
+         }
+ 

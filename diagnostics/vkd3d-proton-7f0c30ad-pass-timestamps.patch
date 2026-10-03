@@ -1,0 +1,1104 @@
+diff --git a/libs/vkd3d/command.c b/libs/vkd3d/command.c
+index f5b7321a..31af9198 100644
+--- a/libs/vkd3d/command.c
++++ b/libs/vkd3d/command.c
+@@ -2165,6 +2165,8 @@ static HRESULT d3d12_command_list_begin_command_buffer(struct d3d12_command_list
+         return hresult_from_vk_result(vr);
+     }
+ 
++    vkd3d_pass_ts_begin_list(list);
++
+     /* In test suite, it's better to rely on user markers when we're debugging. */
+     if (!vkd3d_debug_control_is_test_suite())
+         d3d12_command_list_debug_mark_begin_region(list, "CommandList");
+@@ -2313,6 +2315,7 @@ static void d3d12_command_list_begin_new_sequence(struct d3d12_command_list *lis
+ 
+     d3d12_command_list_update_conditional_rendering_state(list, true);
+ 
++    vkd3d_pass_ts_seal_list(list);
+     if ((vr = VK_CALL(vkEndCommandBuffer(list->cmd.vk_command_buffer)) < 0))
+         ERR("Failed to end command buffer, vr %d.\n", vr);
+ 
+@@ -3699,6 +3702,7 @@ static void d3d12_command_list_check_end_of_command_list_cleanup(struct d3d12_co
+         d3d12_command_allocator_allocate_fixup_command_buffer(list->allocator, list,
+                 &list->cmd.vk_cleanup_commands, "Cleanup");
+ 
++        vkd3d_pass_ts_seal_list(list);
+         if ((vr = VK_CALL(vkEndCommandBuffer(list->cmd.vk_command_buffer))) != VK_SUCCESS)
+             ERR("Failed to end command buffer, vr %d\n", vr);
+         list->cmd.vk_command_buffer = list->cmd.vk_cleanup_commands;
+@@ -6019,6 +6023,7 @@ static void d3d12_command_list_end_rendering(struct d3d12_command_list *list)
+         /* If there is further fixup code, it needs to happen on the suspend command buffer.
+          * Any complex command recorded there will mark the suspend as complex, and the fixup will just count
+          * as another "iteration". */
++        vkd3d_pass_ts_seal_list(list);
+         if ((vr = VK_CALL(vkEndCommandBuffer(list->cmd.vk_command_buffer))) < 0)
+             ERR("Failed to end command buffer, vr %d.\n", vr);
+         list->cmd.vk_command_buffer = list->cmd.suspend_resume.suspend.vk_fixup_cmd_buffer;
+@@ -6086,6 +6091,7 @@ void d3d12_command_list_end_current_render_pass(struct d3d12_command_list *list,
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_end_render_pass(list->device->timestamp_profiler, list);
+ #endif
++    vkd3d_pass_ts_end_pass(list);
+ 
+     if (list->xfb_buffer_count)
+     {
+@@ -6555,6 +6561,7 @@ ULONG STDMETHODCALLTYPE d3d12_command_list_Release(d3d12_command_list_iface *ifa
+         vkd3d_timestamp_profiler_reset_command_list(list->device->timestamp_profiler, list);
+         vkd3d_free(list->timestamp_profiler.work);
+ #endif
++        vkd3d_pass_ts_reset_list(list);
+ 
+         vkd3d_free(list->rtv_resolves);
+         vkd3d_free(list->rtv_resolve_regions);
+@@ -6822,6 +6829,8 @@ static HRESULT STDMETHODCALLTYPE d3d12_command_list_Close(d3d12_command_list_ifa
+     if (list->cmd.vk_cleanup_commands)
+         d3d12_command_list_debug_mark_end_region(list);
+ 
++    vkd3d_pass_ts_end_list(list);
++
+     if ((vr = VK_CALL(vkEndCommandBuffer(list->cmd.vk_command_buffer))) < 0)
+     {
+         WARN("Failed to end command buffer, vr %d.\n", vr);
+@@ -7159,6 +7168,9 @@ static void d3d12_command_list_reset_internal_state(struct d3d12_command_list *l
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_reset_command_list(list->device->timestamp_profiler, list);
+ #endif
++    /* pass_ts is opened by begin_command_buffer, which Reset runs before this.
++     * clearing it here drops every list before Close. begin_list resets the
++     * previous submission itself. Release() still frees an unsubmitted slot. */
+ 
+     d3d12_command_list_clear_rtas_batch(list);
+     list->rtas_batch.pending_rtas_work = false;
+@@ -8277,6 +8289,7 @@ static bool d3d12_command_list_update_compute_state(struct d3d12_command_list *l
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_mark_pre_command(list->device->timestamp_profiler, list);
+ #endif
++    vkd3d_pass_ts_note_command(list, true);
+ 
+     return true;
+ }
+@@ -8829,8 +8842,16 @@ static bool d3d12_command_list_begin_render_pass(struct d3d12_command_list *list
+ 
+     /* It's not possible to modify rendering info while a render pass is in flight. */
+     if (!(list->rendering_info.state_flags & VKD3D_RENDERING_ACTIVE))
++    {
++        vkd3d_pass_ts_prepare_pass(list);
+         if (!d3d12_command_list_update_rendering_info(list))
++        {
++            vkd3d_pass_ts_cancel_pass(list);
+             return false;
++        }
++        vkd3d_pass_ts_begin_pass(list);
++        vkd3d_pass_ts_note_pass(list);
++    }
+ 
+     if (pipeline_type != VKD3D_PIPELINE_TYPE_NONE)
+     {
+@@ -8846,6 +8867,7 @@ static bool d3d12_command_list_begin_render_pass(struct d3d12_command_list *list
+ #ifdef VKD3D_ENABLE_PROFILING
+         vkd3d_timestamp_profiler_mark_pre_command(list->device->timestamp_profiler, list);
+ #endif
++        vkd3d_pass_ts_note_command(list, false);
+         return true;
+     }
+ 
+@@ -8890,6 +8912,7 @@ static bool d3d12_command_list_begin_render_pass(struct d3d12_command_list *list
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_mark_pre_command(list->device->timestamp_profiler, list);
+ #endif
++    vkd3d_pass_ts_note_command(list, false);
+ 
+     d3d12_command_list_handle_active_queries(list, false);
+     return true;
+@@ -13032,6 +13055,7 @@ static void STDMETHODCALLTYPE d3d12_command_list_SetPipelineState(d3d12_command_
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_set_pipeline_state(list->device->timestamp_profiler, list, state);
+ #endif
++    vkd3d_pass_ts_set_pso(list, state);
+ 
+     if (state && state->pipeline_type != VKD3D_PIPELINE_TYPE_COMPUTE)
+     {
+@@ -23714,6 +23738,7 @@ VKD3D_METHODENTRY(void) d3d12_command_queue_ExecuteCommandLists(ID3D12CommandQue
+     unsigned int iter;
+     unsigned int i;
+     HRESULT hr;
++    uint64_t pass_submit;
+ 
+     TRACE("iface %p, command_list_count %u, command_lists %p.\n",
+             iface, command_list_count, command_lists);
+@@ -23749,6 +23774,8 @@ VKD3D_METHODENTRY(void) d3d12_command_queue_ExecuteCommandLists(ID3D12CommandQue
+         }
+     }
+ 
++    pass_submit = vkd3d_pass_ts_begin_submit(command_queue->device->pass_timestamps);
++
+     for (i = 0; i < command_list_count; ++i)
+     {
+         cmd_list = d3d12_command_list_from_iface(command_lists[i]);
+@@ -23762,6 +23789,7 @@ VKD3D_METHODENTRY(void) d3d12_command_queue_ExecuteCommandLists(ID3D12CommandQue
+ #ifdef VKD3D_ENABLE_PROFILING
+         vkd3d_timestamp_profiler_submit_command_list(command_queue->device->timestamp_profiler, cmd_list);
+ #endif
++        vkd3d_pass_ts_submit_list(command_queue->device->pass_timestamps, cmd_list, pass_submit);
+ 
+         if (cmd_list->cmd.vk_query_reset_commands)
+             num_command_buffers++;
+diff --git a/libs/vkd3d/device.c b/libs/vkd3d/device.c
+index 4a25216d..6b9c46f4 100644
+--- a/libs/vkd3d/device.c
++++ b/libs/vkd3d/device.c
+@@ -3906,6 +3906,7 @@ static void d3d12_device_destroy(struct d3d12_device *device)
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_deinit(device->timestamp_profiler);
+ #endif
++    vkd3d_pass_ts_deinit(device->pass_timestamps);
+ #ifdef VKD3D_ENABLE_BREADCRUMBS
+     vkd3d_breadcrumb_tracer_cleanup_barrier_hashes(&device->breadcrumb_tracer);
+     if (VKD3D_CONFIG_FLAG_IS_SET(BREADCRUMBS))
+@@ -10583,6 +10584,7 @@ static HRESULT d3d12_device_init(struct d3d12_device *device,
+ #ifdef VKD3D_ENABLE_PROFILING
+     device->timestamp_profiler = vkd3d_timestamp_profiler_init(device);
+ #endif
++    device->pass_timestamps = vkd3d_pass_ts_init(device);
+ 
+     hash_map_init(&device->vertex_input_pipelines,
+             vkd3d_vertex_input_pipeline_desc_hash,
+diff --git a/libs/vkd3d/meson.build b/libs/vkd3d/meson.build
+index 873a89fb..cdad35a5 100644
+--- a/libs/vkd3d/meson.build
++++ b/libs/vkd3d/meson.build
+@@ -116,6 +116,8 @@ if vkd3d_platform == 'windows'
+   vkd3d_src += ['shared_metadata.c']
+ endif
+ 
++vkd3d_src += ['pass_timestamps.c']
++
+ if enable_profiling
+   vkd3d_src += ['timestamp_profiler.c']
+ endif
+diff --git a/libs/vkd3d/pass_timestamps.c b/libs/vkd3d/pass_timestamps.c
+new file mode 100644
+index 00000000..0e1d4b96
+--- /dev/null
++++ b/libs/vkd3d/pass_timestamps.c
+@@ -0,0 +1,788 @@
++/*
++ * Command-list GPU timestamps for the isolated vkd3d-proton build.
++ *
++ * Records one timestamp pair around each command list. A second scope can
++ * timestamp up to eight render passes in a list. Reads use availability
++ * bits on a worker thread. This does not call vkQueueWaitIdle, does not
++ * wait on a fence in the submit path, and does not insert pipeline barriers.
++ * Shader code is not written. Only hashes and generic metadata are.
++ */
++
++#define VKD3D_DBG_CHANNEL VKD3D_DBG_CHANNEL_API
++
++#include "vkd3d_timestamp_profiler.h"
++#include "vkd3d_threads.h"
++
++#include <inttypes.h>
++#include <stdio.h>
++#include <string.h>
++#include <time.h>
++
++#define PASS_TS_SLOTS 4096u
++#define PASS_TS_SCOPE_LIST 1u
++#define PASS_TS_SCOPE_PASS 2u
++
++struct vkd3d_pass_ts_pending
++{
++    uint32_t slot;
++    uint32_t frame;
++    uint64_t submit;
++    uint32_t kind;
++    uint32_t draws;
++    uint32_t dispatches;
++    uint32_t render_passes;
++    uint32_t pso_changes;
++    uint64_t pso;
++    uint64_t shader;
++    uint64_t root_sig;
++    uint32_t shader_flags;
++    uint32_t shader_bytes;
++    uint32_t pso_type;
++    uint32_t bindings;
++    uint32_t parameters;
++    uint32_t rt_format;
++    uint32_t rt_samples;
++    uint32_t rt_count;
++    uint32_t rt_w;
++    uint32_t rt_h;
++    uint32_t queue_flags;
++    uint32_t list_type;
++};
++
++struct vkd3d_pass_timestamps
++{
++    struct d3d12_device *device;
++    VkQueryPool pool;
++    uint32_t scope;
++    float period;
++    uint32_t bits;
++    uint32_t frame;
++
++    uint32_t free_stack[PASS_TS_SLOTS];
++    uint32_t free_count;
++    pthread_mutex_t alloc_lock;
++
++    struct vkd3d_pass_ts_pending ring[PASS_TS_SLOTS];
++    uint32_t ring_head;
++    uint32_t ring_count;
++    pthread_mutex_t ring_lock;
++    pthread_cond_t ring_cond;
++    pthread_t thread;
++    bool dead;
++    bool thread_live;
++
++    FILE *file;
++    uint32_t lines;
++    uint32_t skipped_full;
++    uint32_t skipped_split;
++    uint32_t resubmits;
++    pthread_mutex_t file_lock;
++};
++
++/* bits < 64: timestamps wrap at 2^bits. bits >= 64: plain subtraction. */
++uint64_t vkd3d_pass_ts_delta(uint64_t begin, uint64_t end, uint32_t bits, bool *wrapped)
++{
++    uint64_t mask;
++
++    *wrapped = false;
++    if (bits == 0 || bits >= 64)
++    {
++        if (end >= begin)
++            return end - begin;
++        *wrapped = true;
++        return 0;
++    }
++
++    mask = (1ull << bits) - 1ull;
++    begin &= mask;
++    end &= mask;
++    if (end >= begin)
++        return end - begin;
++    *wrapped = true;
++    return (mask - begin) + 1ull + end;
++}
++
++static void pass_ts_promote(struct vkd3d_pass_ts_list *st)
++{
++    if (st->cur_count <= st->top_count)
++        return;
++    st->top_count = st->cur_count;
++    st->top_pso = st->cur_pso;
++    st->top_shader = st->cur_shader;
++    st->top_root_sig = st->cur_root_sig;
++    st->top_flags = st->cur_flags;
++    st->top_shader_bytes = st->cur_shader_bytes;
++    st->top_type = st->cur_type;
++    st->top_bindings = st->cur_bindings;
++    st->top_parameters = st->cur_parameters;
++    st->top_rt_format = st->cur_rt_format;
++    st->top_rt_samples = st->cur_rt_samples;
++    st->top_rt_count = st->cur_rt_count;
++    st->top_rt_w = st->cur_rt_w;
++    st->top_rt_h = st->cur_rt_h;
++}
++
++static uint32_t pass_ts_alloc(struct vkd3d_pass_timestamps *ts)
++{
++    uint32_t slot = UINT32_MAX;
++
++    pthread_mutex_lock(&ts->alloc_lock);
++    if (ts->free_count)
++        slot = ts->free_stack[--ts->free_count];
++    pthread_mutex_unlock(&ts->alloc_lock);
++    if (slot == UINT32_MAX)
++        ts->skipped_full++;
++    return slot;
++}
++
++static void pass_ts_release(struct vkd3d_pass_timestamps *ts, uint32_t slot)
++{
++    if (slot == UINT32_MAX)
++        return;
++    pthread_mutex_lock(&ts->alloc_lock);
++    ts->free_stack[ts->free_count++] = slot;
++    pthread_mutex_unlock(&ts->alloc_lock);
++}
++
++static void pass_ts_fill_common(struct vkd3d_pass_ts_pending *rec, struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_ts_list *st = &list->pass_ts;
++
++    memset(rec, 0, sizeof(*rec));
++    rec->draws = st->draws;
++    rec->dispatches = st->dispatches;
++    rec->render_passes = st->render_passes;
++    rec->pso_changes = st->pso_changes;
++    rec->pso = st->top_pso;
++    rec->shader = st->top_shader;
++    rec->root_sig = st->top_root_sig;
++    rec->shader_flags = st->top_flags;
++    rec->shader_bytes = st->top_shader_bytes;
++    rec->pso_type = st->top_type;
++    rec->bindings = st->top_bindings;
++    rec->parameters = st->top_parameters;
++    rec->rt_format = st->top_rt_format;
++    rec->rt_samples = st->top_rt_samples;
++    rec->rt_count = st->top_rt_count;
++    rec->rt_w = st->top_rt_w;
++    rec->rt_h = st->top_rt_h;
++    rec->queue_flags = list->vk_queue_flags;
++    rec->list_type = list->type;
++}
++
++static bool pass_ts_push(struct vkd3d_pass_timestamps *ts, const struct vkd3d_pass_ts_pending *rec)
++{
++    bool ok = false;
++
++    pthread_mutex_lock(&ts->ring_lock);
++    if (ts->ring_count < PASS_TS_SLOTS)
++    {
++        ts->ring[(ts->ring_head + ts->ring_count) % PASS_TS_SLOTS] = *rec;
++        ts->ring_count++;
++        ok = true;
++        pthread_cond_signal(&ts->ring_cond);
++    }
++    pthread_mutex_unlock(&ts->ring_lock);
++    if (!ok)
++    {
++        ts->skipped_full++;
++        pass_ts_release(ts, rec->slot);
++    }
++    return ok;
++}
++
++static void pass_ts_write(struct vkd3d_pass_timestamps *ts, const struct vkd3d_pass_ts_pending *rec,
++        uint64_t ticks, int wrapped)
++{
++    if (!ts->file)
++        return;
++    pthread_mutex_lock(&ts->file_lock);
++    fprintf(ts->file,
++            "%u,%"PRIu64",%u,%"PRIu64",%d,%u,%u,%u,%u,%016"PRIx64",%016"PRIx64",%016"PRIx64",%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
++            rec->frame, rec->submit, rec->kind, ticks, wrapped,
++            rec->draws, rec->dispatches, rec->render_passes, rec->pso_changes,
++            rec->pso, rec->shader, rec->root_sig, rec->shader_flags, rec->shader_bytes,
++            rec->pso_type, rec->bindings, rec->parameters,
++            rec->rt_format, rec->rt_samples, rec->rt_count, rec->rt_w, rec->rt_h,
++            rec->queue_flags, rec->list_type);
++    fflush(ts->file);
++    pthread_mutex_unlock(&ts->file_lock);
++}
++
++static bool pass_ts_read_pair(struct vkd3d_pass_timestamps *ts, uint32_t slot, uint64_t *ticks, int *wrapped)
++{
++    const struct vkd3d_vk_device_procs *vk_procs = &ts->device->vk_procs;
++    uint64_t data[4];
++    bool did_wrap = false;
++    VkResult vr;
++
++    /* two queries, each followed by its availability word. */
++    vr = VK_CALL(vkGetQueryPoolResults(ts->device->vk_device, ts->pool,
++            slot * 2u, 2u, sizeof(data), data, sizeof(uint64_t) * 2u,
++            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT));
++    if (vr == VK_ERROR_DEVICE_LOST)
++        return false;
++    if (vr < 0 || !data[1] || !data[3])
++        return false;
++
++    *ticks = vkd3d_pass_ts_delta(data[0], data[2], ts->bits, &did_wrap);
++    *wrapped = did_wrap ? 1 : 0;
++    return true;
++}
++
++static void *pass_ts_thread(void *arg)
++{
++    struct vkd3d_pass_timestamps *ts = arg;
++
++    vkd3d_set_thread_name("vkd3d-pass-ts");
++    for (;;)
++    {
++        struct vkd3d_pass_ts_pending rec;
++        struct timespec dur = {0, 5 * 1000 * 1000};
++        uint64_t ticks = 0;
++        int wrapped = 0;
++
++        pthread_mutex_lock(&ts->ring_lock);
++        while (!ts->dead && ts->ring_count == 0)
++            pthread_cond_wait(&ts->ring_cond, &ts->ring_lock);
++        if (ts->ring_count == 0 && ts->dead)
++        {
++            pthread_mutex_unlock(&ts->ring_lock);
++            break;
++        }
++        rec = ts->ring[ts->ring_head];
++        pthread_mutex_unlock(&ts->ring_lock);
++
++        if (!pass_ts_read_pair(ts, rec.slot, &ticks, &wrapped))
++        {
++            if (ts->dead)
++            {
++                /* device is going away. drop unread queries. */
++                pthread_mutex_lock(&ts->ring_lock);
++                ts->ring_head = (ts->ring_head + 1u) % PASS_TS_SLOTS;
++                ts->ring_count--;
++                pthread_mutex_unlock(&ts->ring_lock);
++                continue;
++            }
++            nanosleep(&dur, NULL);
++            continue;
++        }
++
++        pass_ts_write(ts, &rec, ticks, wrapped);
++        /* host reset clears availability before this slot is reused.
++         * otherwise a later read can observe the previous result as ready. */
++        {
++            const struct vkd3d_vk_device_procs *vk_procs = &ts->device->vk_procs;
++            VK_CALL(vkResetQueryPool(ts->device->vk_device, ts->pool, rec.slot * 2u, 2u));
++        }
++        pass_ts_release(ts, rec.slot);
++
++        pthread_mutex_lock(&ts->ring_lock);
++        ts->ring_head = (ts->ring_head + 1u) % PASS_TS_SLOTS;
++        ts->ring_count--;
++        pthread_mutex_unlock(&ts->ring_lock);
++    }
++    return NULL;
++}
++
++static FILE *pass_ts_open_log(const char *env)
++{
++    char path[VKD3D_PATH_MAX];
++    char tmp[VKD3D_PATH_MAX];
++    size_t i, n;
++
++#ifdef _WIN32
++    if (env[0] == '/')
++        snprintf(path, sizeof(path), "Z:\\%s", env + 1);
++    else
++        snprintf(path, sizeof(path), "%s", env);
++    for (i = 0, n = strlen(path); i < n; i++)
++        if (path[i] == '/')
++            path[i] = '\\';
++#else
++    snprintf(path, sizeof(path), "%s", env);
++#endif
++
++    snprintf(tmp, sizeof(tmp), "%s", path);
++    return fopen(tmp, "w");
++}
++
++struct vkd3d_pass_timestamps *vkd3d_pass_ts_init(struct d3d12_device *device)
++{
++    const struct vkd3d_vk_device_procs *vk_procs = &device->vk_procs;
++    struct vkd3d_pass_timestamps *ts;
++    VkQueryPoolCreateInfo pool_info;
++    char env[VKD3D_PATH_MAX];
++    char scope[32];
++    unsigned int i;
++
++    if (!vkd3d_get_env_var("VKD3D_PASS_TIMESTAMPS", env, sizeof(env)) || !env[0])
++        return NULL;
++
++    ts = vkd3d_calloc(1, sizeof(*ts));
++    if (!ts)
++        return NULL;
++    ts->device = device;
++    ts->period = device->vk_info.device_limits.timestampPeriod;
++    if (device->queue_families[VKD3D_QUEUE_FAMILY_GRAPHICS])
++        ts->bits = device->queue_families[VKD3D_QUEUE_FAMILY_GRAPHICS]->timestamp_bits;
++    ts->scope = PASS_TS_SCOPE_LIST;
++    if (vkd3d_get_env_var("VKD3D_PASS_TS_SCOPE", scope, sizeof(scope)) && !strcmp(scope, "pass"))
++        ts->scope = PASS_TS_SCOPE_PASS;
++
++    if (!ts->bits)
++    {
++        vkd3d_free(ts);
++        return NULL;
++    }
++
++    memset(&pool_info, 0, sizeof(pool_info));
++    pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
++    pool_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
++    pool_info.queryCount = PASS_TS_SLOTS * 2u;
++    if (VK_CALL(vkCreateQueryPool(device->vk_device, &pool_info, NULL, &ts->pool)) != VK_SUCCESS)
++    {
++        vkd3d_free(ts);
++        return NULL;
++    }
++    VK_CALL(vkResetQueryPool(device->vk_device, ts->pool, 0, PASS_TS_SLOTS * 2u));
++
++    for (i = 0; i < PASS_TS_SLOTS; i++)
++        ts->free_stack[i] = PASS_TS_SLOTS - 1u - i;
++    ts->free_count = PASS_TS_SLOTS;
++    pthread_mutex_init(&ts->alloc_lock, NULL);
++    pthread_mutex_init(&ts->ring_lock, NULL);
++    pthread_mutex_init(&ts->file_lock, NULL);
++    pthread_cond_init(&ts->ring_cond, NULL);
++
++    ts->file = pass_ts_open_log(env);
++    if (!ts->file)
++    {
++        VK_CALL(vkDestroyQueryPool(device->vk_device, ts->pool, NULL));
++        vkd3d_free(ts);
++        return NULL;
++    }
++
++    fprintf(ts->file, "# vkd3d pass timestamps\n");
++    fprintf(ts->file, "# period_ns %.9f\n", ts->period);
++    fprintf(ts->file, "# valid_bits %u\n", ts->bits);
++    fprintf(ts->file, "# scope %s\n", ts->scope == PASS_TS_SCOPE_PASS ? "pass" : "list");
++
++    if ((device->device_info.time_domains & VKD3D_TIME_DOMAIN_DEVICE) &&
++            (device->device_info.time_domains & (VKD3D_TIME_DOMAIN_CLOCK_MONOTONIC | VKD3D_TIME_DOMAIN_QPC)))
++    {
++        VkCalibratedTimestampInfoKHR infos[2];
++        uint64_t stamps[2], deviation = 0;
++        const char *host_name = "monotonic";
++        uint32_t count = 0;
++
++        memset(infos, 0, sizeof(infos));
++        infos[count].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_KHR;
++        infos[count].timeDomain = VK_TIME_DOMAIN_DEVICE_KHR;
++        count++;
++        infos[count].sType = VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_KHR;
++        if (device->device_info.time_domains & VKD3D_TIME_DOMAIN_CLOCK_MONOTONIC)
++            infos[count].timeDomain = VK_TIME_DOMAIN_CLOCK_MONOTONIC_KHR;
++        else
++        {
++            infos[count].timeDomain = VK_TIME_DOMAIN_QUERY_PERFORMANCE_COUNTER_KHR;
++            host_name = "qpc";
++        }
++        count++;
++        if (VK_CALL(vkGetCalibratedTimestampsKHR(device->vk_device, count, infos, stamps, &deviation)) >= 0)
++        {
++            fprintf(ts->file, "# calibrated_gpu %"PRIu64"\n", stamps[0]);
++            fprintf(ts->file, "# calibrated_host_domain %s\n", host_name);
++            fprintf(ts->file, "# calibrated_host %"PRIu64"\n", stamps[1]);
++            fprintf(ts->file, "# calibrated_deviation %"PRIu64"\n", deviation);
++        }
++    }
++    fprintf(ts->file,
++            "frame,submit,kind,gpu_ticks,wrapped,draws,dispatches,render_passes,pso_changes,pso,shader,root_sig,shader_flags,shader_bytes,pso_type,bindings,parameters,rt_format,rt_samples,rt_count,rt_w,rt_h,queue_flags,list_type\n");
++    fflush(ts->file);
++
++    if (pthread_create(&ts->thread, NULL, pass_ts_thread, ts))
++    {
++        fclose(ts->file);
++        VK_CALL(vkDestroyQueryPool(device->vk_device, ts->pool, NULL));
++        vkd3d_free(ts);
++        return NULL;
++    }
++    ts->thread_live = true;
++    INFO("Pass timestamps -> \"%s\" scope %u period %.3f bits %u.\n", env, ts->scope, ts->period, ts->bits);
++    return ts;
++}
++
++void vkd3d_pass_ts_deinit(struct vkd3d_pass_timestamps *ts)
++{
++    const struct vkd3d_vk_device_procs *vk_procs;
++
++    if (!ts)
++        return;
++    pthread_mutex_lock(&ts->ring_lock);
++    ts->dead = true;
++    pthread_cond_signal(&ts->ring_cond);
++    pthread_mutex_unlock(&ts->ring_lock);
++    if (ts->thread_live)
++        pthread_join(ts->thread, NULL);
++    if (ts->file)
++    {
++        fprintf(ts->file, "# skipped_full %u\n", ts->skipped_full);
++        fprintf(ts->file, "# skipped_split %u\n", ts->skipped_split);
++        fprintf(ts->file, "# resubmits %u\n", ts->resubmits);
++        fclose(ts->file);
++    }
++    vk_procs = &ts->device->vk_procs;
++    VK_CALL(vkDestroyQueryPool(ts->device->vk_device, ts->pool, NULL));
++    pthread_mutex_destroy(&ts->alloc_lock);
++    pthread_mutex_destroy(&ts->ring_lock);
++    pthread_mutex_destroy(&ts->file_lock);
++    pthread_cond_destroy(&ts->ring_cond);
++    vkd3d_free(ts);
++}
++
++void vkd3d_pass_ts_frame(struct vkd3d_pass_timestamps *ts)
++{
++    if (!ts)
++        return;
++    ts->frame++;
++}
++
++uint64_t vkd3d_pass_ts_begin_submit(struct vkd3d_pass_timestamps *ts)
++{
++    static uint64_t serial = 1;
++
++    if (!ts)
++        return 0;
++    return __atomic_fetch_add(&serial, 1, __ATOMIC_RELAXED);
++}
++
++static void pass_ts_release_unsubmitted(struct vkd3d_pass_timestamps *ts, struct vkd3d_pass_ts_list *st)
++{
++    unsigned int i;
++
++    if (st->list_submitted)
++        return;
++    if (st->list_open || st->list_ended)
++        pass_ts_release(ts, st->list_slot);
++    for (i = 0; i < st->pass_logged; i++)
++        pass_ts_release(ts, st->pass_slot[i]);
++    if (st->pass_open)
++        pass_ts_release(ts, st->pass_open_slot);
++}
++
++void vkd3d_pass_ts_reset_list(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++
++    if (!ts)
++        return;
++    pass_ts_release_unsubmitted(ts, &list->pass_ts);
++    memset(&list->pass_ts, 0, sizeof(list->pass_ts));
++}
++
++void vkd3d_pass_ts_begin_list(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    const struct vkd3d_vk_device_procs *vk_procs;
++    struct vkd3d_pass_ts_list *st;
++    uint32_t slot;
++
++    if (!ts)
++        return;
++    st = &list->pass_ts;
++    if (st->list_open || st->list_ended)
++        vkd3d_pass_ts_reset_list(list);
++
++    slot = pass_ts_alloc(ts);
++    if (slot == UINT32_MAX)
++        return;
++
++    vk_procs = &list->device->vk_procs;
++    VK_CALL(vkCmdResetQueryPool(list->cmd.vk_command_buffer, ts->pool, slot * 2u, 2u));
++    VK_CALL(vkCmdWriteTimestamp2(list->cmd.vk_command_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
++            ts->pool, slot * 2u));
++    st->list_slot = slot;
++    st->list_open = true;
++    st->vk_cb = list->cmd.vk_command_buffer;
++}
++
++/* write the end timestamp on the command buffer that holds the begin
++ * timestamp, before vkd3d ends that buffer and switches to a tiler fixup.
++ * the fixup is not always submitted, so a timestamp there never completes. */
++void vkd3d_pass_ts_seal_list(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    const struct vkd3d_vk_device_procs *vk_procs;
++    struct vkd3d_pass_ts_list *st;
++    VkPipelineStageFlags2 stage;
++
++    if (!ts)
++        return;
++    st = &list->pass_ts;
++    if (!st->list_open || list->cmd.vk_command_buffer != st->vk_cb)
++        return;
++
++    if (st->pass_open)
++        vkd3d_pass_ts_end_pass(list);
++
++    pass_ts_promote(st);
++    vk_procs = &list->device->vk_procs;
++    stage = list->is_inside_render_pass
++            ? VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT
++            : VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
++    VK_CALL(vkCmdWriteTimestamp2(list->cmd.vk_command_buffer, stage,
++            ts->pool, st->list_slot * 2u + 1u));
++    st->list_open = false;
++    st->list_ended = true;
++}
++
++void vkd3d_pass_ts_end_list(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    struct vkd3d_pass_ts_list *st;
++
++    if (!ts)
++        return;
++    st = &list->pass_ts;
++    if (!st->list_open)
++        return;
++    if (list->cmd.vk_command_buffer != st->vk_cb)
++    {
++        ts->skipped_split++;
++        pass_ts_release(ts, st->list_slot);
++        st->list_open = false;
++        st->list_slot = UINT32_MAX;
++        return;
++    }
++
++    vkd3d_pass_ts_seal_list(list);
++}
++
++void vkd3d_pass_ts_submit_list(struct vkd3d_pass_timestamps *ts, struct d3d12_command_list *list, uint64_t submit)
++{
++    struct vkd3d_pass_ts_pending rec;
++    struct vkd3d_pass_ts_list *st;
++    unsigned int i;
++
++    if (!ts)
++        return;
++    st = &list->pass_ts;
++    if (!st->list_ended)
++        return;
++    if (st->list_submitted)
++    {
++        ts->resubmits++;
++        return;
++    }
++
++    pass_ts_fill_common(&rec, list);
++    rec.slot = st->list_slot;
++    rec.frame = ts->frame;
++    rec.submit = submit;
++    rec.kind = 0;
++    pass_ts_push(ts, &rec);
++
++    for (i = 0; i < st->pass_logged; i++)
++    {
++        memset(&rec, 0, sizeof(rec));
++        rec.slot = st->pass_slot[i];
++        rec.frame = ts->frame;
++        rec.submit = submit;
++        rec.kind = 1;
++        rec.draws = st->pass_draws[i];
++        rec.dispatches = st->pass_dispatches[i];
++        rec.pso = st->pass_pso[i];
++        rec.shader = st->pass_shader[i];
++        rec.shader_flags = st->pass_flags[i];
++        rec.shader_bytes = st->pass_bytes[i];
++        rec.pso_type = st->pass_type[i];
++        rec.rt_format = st->pass_rt_format[i];
++        rec.rt_samples = st->pass_rt_samples[i];
++        rec.rt_count = st->pass_rt_count[i];
++        rec.rt_w = st->pass_rt_w[i];
++        rec.rt_h = st->pass_rt_h[i];
++        rec.queue_flags = list->vk_queue_flags;
++        rec.list_type = list->type;
++        pass_ts_push(ts, &rec);
++    }
++    st->list_submitted = true;
++}
++
++void vkd3d_pass_ts_set_pso(struct d3d12_command_list *list, struct d3d12_pipeline_state *state)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    struct vkd3d_pass_ts_list *st;
++    unsigned int i;
++
++    if (!ts || !list->pass_ts.list_open)
++        return;
++    st = &list->pass_ts;
++    pass_ts_promote(st);
++    st->pso_changes++;
++    st->cur_count = 0;
++    st->cur_pso = 0;
++    st->cur_shader = 0;
++    st->cur_root_sig = 0;
++    st->cur_flags = 0;
++    st->cur_shader_bytes = 0;
++    st->cur_type = 0;
++    st->cur_bindings = 0;
++    st->cur_parameters = 0;
++    st->cur_rt_format = 0;
++    st->cur_rt_samples = 0;
++    st->cur_rt_count = 0;
++    if (!state)
++        return;
++
++    st->cur_pso = vkd3d_pipeline_cache_compatibility_condense(&state->pipeline_cache_compat);
++    st->cur_root_sig = state->pipeline_cache_compat.root_signature_compat_hash;
++    st->cur_type = state->pipeline_type;
++    if (state->root_signature)
++    {
++        st->cur_bindings = state->root_signature->binding_count;
++        st->cur_parameters = state->root_signature->parameter_count;
++    }
++
++    if (state->pipeline_type == VKD3D_PIPELINE_TYPE_COMPUTE)
++    {
++        st->cur_shader = state->compute.code.meta.hash;
++        st->cur_flags = state->compute.code.meta.flags;
++        st->cur_shader_bytes = (uint32_t)state->compute.code.size;
++    }
++    else
++    {
++        st->cur_rt_count = state->graphics.rt_count;
++        st->cur_rt_samples = state->graphics.ms_desc.rasterizationSamples;
++        if (state->graphics.rt_count)
++            st->cur_rt_format = state->graphics.rtv_formats[0];
++        for (i = 0; i < state->graphics.stage_count; i++)
++        {
++            if (state->graphics.stages[i].stage == VK_SHADER_STAGE_FRAGMENT_BIT)
++            {
++                st->cur_shader = state->graphics.code[i].meta.hash;
++                st->cur_flags = state->graphics.code[i].meta.flags;
++                st->cur_shader_bytes = (uint32_t)state->graphics.code[i].size;
++                break;
++            }
++        }
++    }
++}
++
++void vkd3d_pass_ts_note_command(struct d3d12_command_list *list, bool dispatch)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    struct vkd3d_pass_ts_list *st;
++
++    if (!ts || !list->pass_ts.list_open)
++        return;
++    st = &list->pass_ts;
++    /* reset can bind a pso before the command buffer is open. */
++    if (!st->cur_pso && !st->cur_count && list->state)
++        vkd3d_pass_ts_set_pso(list, list->state);
++    st->cur_count++;
++    st->cur_rt_w = list->rendering_info.info.renderArea.extent.width;
++    st->cur_rt_h = list->rendering_info.info.renderArea.extent.height;
++    if (dispatch)
++        st->dispatches++;
++    else
++        st->draws++;
++}
++
++void vkd3d_pass_ts_prepare_pass(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    const struct vkd3d_vk_device_procs *vk_procs;
++    struct vkd3d_pass_ts_list *st;
++    uint32_t slot;
++
++    if (!ts || ts->scope < PASS_TS_SCOPE_PASS || !list->pass_ts.list_open)
++        return;
++    st = &list->pass_ts;
++    if (list->cmd.vk_command_buffer != st->vk_cb)
++        return;
++    if (st->pass_logged >= VKD3D_PASS_TS_MAX_PASSES || st->pass_open)
++        return;
++
++    slot = pass_ts_alloc(ts);
++    if (slot == UINT32_MAX)
++        return;
++    vk_procs = &list->device->vk_procs;
++    /* reset outside the render pass. the begin timestamp is written after it starts. */
++    VK_CALL(vkCmdResetQueryPool(list->cmd.vk_command_buffer, ts->pool, slot * 2u, 2u));
++    st->pass_open_slot = slot;
++    st->pass_open = true;
++    st->pass_draw_base = st->draws;
++    st->pass_dispatch_base = st->dispatches;
++}
++
++void vkd3d_pass_ts_begin_pass(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    const struct vkd3d_vk_device_procs *vk_procs;
++    struct vkd3d_pass_ts_list *st;
++
++    if (!ts || !list->pass_ts.pass_open)
++        return;
++    st = &list->pass_ts;
++    vk_procs = &list->device->vk_procs;
++    VK_CALL(vkCmdWriteTimestamp2(list->cmd.vk_command_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
++            ts->pool, st->pass_open_slot * 2u));
++}
++
++void vkd3d_pass_ts_end_pass(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++    const struct vkd3d_vk_device_procs *vk_procs;
++    struct vkd3d_pass_ts_list *st;
++    uint32_t n;
++
++    if (!ts || !list->pass_ts.pass_open)
++        return;
++    st = &list->pass_ts;
++    if (list->cmd.vk_command_buffer != st->vk_cb)
++    {
++        pass_ts_release(ts, st->pass_open_slot);
++        st->pass_open = false;
++        return;
++    }
++
++    vk_procs = &list->device->vk_procs;
++    VK_CALL(vkCmdWriteTimestamp2(list->cmd.vk_command_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
++            ts->pool, st->pass_open_slot * 2u + 1u));
++    n = st->pass_logged++;
++    st->pass_slot[n] = st->pass_open_slot;
++    st->pass_draws[n] = st->draws - st->pass_draw_base;
++    st->pass_dispatches[n] = st->dispatches - st->pass_dispatch_base;
++    /* last pso in this pass. the list record keeps the dominant pso. */
++    st->pass_pso[n] = st->cur_pso ? st->cur_pso : st->top_pso;
++    st->pass_shader[n] = st->cur_shader ? st->cur_shader : st->top_shader;
++    st->pass_flags[n] = st->cur_flags ? st->cur_flags : st->top_flags;
++    st->pass_bytes[n] = st->cur_shader_bytes ? st->cur_shader_bytes : st->top_shader_bytes;
++    st->pass_type[n] = st->cur_type ? st->cur_type : st->top_type;
++    st->pass_rt_format[n] = st->cur_rt_format ? st->cur_rt_format : st->top_rt_format;
++    st->pass_rt_samples[n] = st->cur_rt_samples ? st->cur_rt_samples : st->top_rt_samples;
++    st->pass_rt_count[n] = st->cur_rt_count ? st->cur_rt_count : st->top_rt_count;
++    st->pass_rt_w[n] = list->rendering_info.info.renderArea.extent.width;
++    st->pass_rt_h[n] = list->rendering_info.info.renderArea.extent.height;
++    st->pass_open = false;
++}
++
++void vkd3d_pass_ts_note_pass(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++
++    if (!ts || !list->pass_ts.list_open)
++        return;
++    list->pass_ts.render_passes++;
++}
++
++void vkd3d_pass_ts_cancel_pass(struct d3d12_command_list *list)
++{
++    struct vkd3d_pass_timestamps *ts = list->device->pass_timestamps;
++
++    if (!ts || !list->pass_ts.pass_open)
++        return;
++    pass_ts_release(ts, list->pass_ts.pass_open_slot);
++    list->pass_ts.pass_open = false;
++}
+diff --git a/libs/vkd3d/swapchain.c b/libs/vkd3d/swapchain.c
+index 7140f6c8..fa047330 100644
+--- a/libs/vkd3d/swapchain.c
++++ b/libs/vkd3d/swapchain.c
+@@ -3218,6 +3218,7 @@ static void dxgi_vk_swap_chain_present_callback(void *chain_)
+ #ifdef VKD3D_ENABLE_PROFILING
+     vkd3d_timestamp_profiler_mark_frame_boundary(chain->queue->device->timestamp_profiler);
+ #endif
++    vkd3d_pass_ts_frame(chain->queue->device->pass_timestamps);
+ }
+ 
+ static void dxgi_vk_swap_chain_update_past_presentation(struct dxgi_vk_swap_chain *chain,
+diff --git a/libs/vkd3d/vkd3d_private.h b/libs/vkd3d/vkd3d_private.h
+index 0c63c294..7210147a 100644
+--- a/libs/vkd3d/vkd3d_private.h
++++ b/libs/vkd3d/vkd3d_private.h
+@@ -3406,6 +3406,67 @@ struct vkd3d_dgc_batch
+     size_t draws_count;
+ };
+ 
++
++#define VKD3D_PASS_TS_MAX_PASSES 8
++struct vkd3d_pass_ts_list
++{
++    VkCommandBuffer vk_cb;
++    uint32_t list_slot;
++    bool list_open;
++    bool list_ended;
++    bool list_submitted;
++    uint32_t draws;
++    uint32_t dispatches;
++    uint32_t render_passes;
++    uint32_t pso_changes;
++    uint64_t top_pso;
++    uint64_t top_shader;
++    uint64_t top_root_sig;
++    uint32_t top_count;
++    uint32_t top_flags;
++    uint32_t top_shader_bytes;
++    uint32_t top_type;
++    uint32_t top_bindings;
++    uint32_t top_parameters;
++    uint32_t top_rt_format;
++    uint32_t top_rt_samples;
++    uint32_t top_rt_count;
++    uint32_t top_rt_w;
++    uint32_t top_rt_h;
++    uint64_t cur_pso;
++    uint64_t cur_shader;
++    uint64_t cur_root_sig;
++    uint32_t cur_count;
++    uint32_t cur_flags;
++    uint32_t cur_shader_bytes;
++    uint32_t cur_type;
++    uint32_t cur_bindings;
++    uint32_t cur_parameters;
++    uint32_t cur_rt_format;
++    uint32_t cur_rt_samples;
++    uint32_t cur_rt_count;
++    uint32_t cur_rt_w;
++    uint32_t cur_rt_h;
++    bool pass_open;
++    uint32_t pass_open_slot;
++    uint32_t pass_draw_base;
++    uint32_t pass_dispatch_base;
++    uint32_t pass_logged;
++    uint32_t pass_slot[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_draws[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_dispatches[VKD3D_PASS_TS_MAX_PASSES];
++    uint64_t pass_pso[VKD3D_PASS_TS_MAX_PASSES];
++    uint64_t pass_shader[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_flags[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_bytes[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_type[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_rt_format[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_rt_samples[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_rt_count[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_rt_w[VKD3D_PASS_TS_MAX_PASSES];
++    uint32_t pass_rt_h[VKD3D_PASS_TS_MAX_PASSES];
++};
++
+ struct d3d12_command_list
+ {
+     d3d12_command_list_iface ID3D12GraphicsCommandList_iface;
+@@ -3555,6 +3616,7 @@ struct d3d12_command_list
+         uint32_t dispatch_count;
+     } timestamp_profiler;
+ #endif
++    struct vkd3d_pass_ts_list pass_ts;
+ };
+ 
+ HRESULT d3d12_command_list_create(struct d3d12_device *device,
+@@ -5907,6 +5969,7 @@ struct d3d12_device
+ #ifdef VKD3D_ENABLE_PROFILING
+     struct vkd3d_timestamp_profiler *timestamp_profiler;
+ #endif
++    struct vkd3d_pass_timestamps *pass_timestamps;
+     uint64_t shader_interface_key;
+     uint32_t device_has_dgc_templates;
+ 
+diff --git a/libs/vkd3d/vkd3d_timestamp_profiler.h b/libs/vkd3d/vkd3d_timestamp_profiler.h
+index be5de1c8..d498b690 100644
+--- a/libs/vkd3d/vkd3d_timestamp_profiler.h
++++ b/libs/vkd3d/vkd3d_timestamp_profiler.h
+@@ -55,4 +55,24 @@ void vkd3d_timestamp_profiler_submit_command_list(struct vkd3d_timestamp_profile
+ void vkd3d_timestamp_profiler_mark_frame_boundary(struct vkd3d_timestamp_profiler *profiler);
+ 
+ #endif
+-#endif
+\ No newline at end of file
++
++struct vkd3d_pass_timestamps *vkd3d_pass_ts_init(struct d3d12_device *device);
++void vkd3d_pass_ts_deinit(struct vkd3d_pass_timestamps *profiler);
++void vkd3d_pass_ts_frame(struct vkd3d_pass_timestamps *profiler);
++uint64_t vkd3d_pass_ts_begin_submit(struct vkd3d_pass_timestamps *profiler);
++void vkd3d_pass_ts_reset_list(struct d3d12_command_list *list);
++void vkd3d_pass_ts_begin_list(struct d3d12_command_list *list);
++void vkd3d_pass_ts_seal_list(struct d3d12_command_list *list);
++void vkd3d_pass_ts_end_list(struct d3d12_command_list *list);
++void vkd3d_pass_ts_submit_list(struct vkd3d_pass_timestamps *profiler,
++        struct d3d12_command_list *list, uint64_t submit);
++void vkd3d_pass_ts_set_pso(struct d3d12_command_list *list, struct d3d12_pipeline_state *state);
++void vkd3d_pass_ts_note_command(struct d3d12_command_list *list, bool dispatch);
++void vkd3d_pass_ts_prepare_pass(struct d3d12_command_list *list);
++void vkd3d_pass_ts_begin_pass(struct d3d12_command_list *list);
++void vkd3d_pass_ts_end_pass(struct d3d12_command_list *list);
++void vkd3d_pass_ts_note_pass(struct d3d12_command_list *list);
++void vkd3d_pass_ts_cancel_pass(struct d3d12_command_list *list);
++uint64_t vkd3d_pass_ts_delta(uint64_t begin, uint64_t end, uint32_t bits, bool *wrapped);
++
++#endif

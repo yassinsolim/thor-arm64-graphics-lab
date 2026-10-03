@@ -1,0 +1,264 @@
+diff --git a/src/freedreno/common/freedreno_dev_info.h b/src/freedreno/common/freedreno_dev_info.h
+index 3a6eeed5d..13e64a1fb 100644
+--- a/src/freedreno/common/freedreno_dev_info.h
++++ b/src/freedreno/common/freedreno_dev_info.h
+@@ -407,6 +407,9 @@ struct fd_dev_info {
+        */
+       bool ubwc_all_formats_compatible;
+ 
++      /* whether sparse image residency has been validated on this GPU. */
++      bool supports_sparse_image_2d;
++
+       bool has_compliant_dp4acc;
+ 
+       /* Whether a single clear blit could be used for both sysmem and gmem.*/
+diff --git a/src/freedreno/common/freedreno_devices.py b/src/freedreno/common/freedreno_devices.py
+index 47791d645..2c264119b 100644
+--- a/src/freedreno/common/freedreno_devices.py
++++ b/src/freedreno/common/freedreno_devices.py
+@@ -876,6 +876,7 @@ a7xx_gen3 = GPUProps(
+         r8g8_faulty_fast_clear_quirk = True,
+         gs_vpc_adjacency_quirk = True,
+         ubwc_all_formats_compatible = True,
++        supports_sparse_image_2d = True,
+         has_compliant_dp4acc = True,
+         ubwc_coherency_quirk = True,
+         has_persistent_counter = True,
+@@ -1104,7 +1105,7 @@ add_gpus([
+         GPUId(chip_id=0xffff43050c01, name="Adreno X1-85"),
+     ], A6xxGPUInfo(
+         CHIP.A7XX,
+-        [a7xx_base, a7xx_gen2],
++        [a7xx_base, a7xx_gen2, GPUProps(supports_sparse_image_2d = True)],
+         num_ccu = 6,
+         tile_align_w = 96,
+         tile_align_h = 32,
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+index e8ef94037..f12df2e03 100644
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -468,10 +468,11 @@ tu_get_features(struct tu_physical_device *pdevice,
+    features->sparseBinding = pdevice->has_sparse;
+    features->sparseResidencyBuffer = pdevice->has_sparse_prr;
+    features->sparseResidencyImage2D = pdevice->has_sparse_prr &&
++      pdevice->info->props.supports_sparse_image_2d;
++   features->sparseResidency2Samples = features->sparseResidencyImage2D &&
+       pdevice->info->props.ubwc_all_formats_compatible;
+-   features->sparseResidency2Samples = features->sparseResidencyImage2D;
+-   features->sparseResidency4Samples = features->sparseResidencyImage2D;
+-   features->sparseResidency8Samples = features->sparseResidencyImage2D;
++   features->sparseResidency4Samples = features->sparseResidency2Samples;
++   features->sparseResidency8Samples = features->sparseResidency2Samples;
+    features->sparseResidencyAliased = pdevice->has_sparse_prr;
+    features->shaderResourceResidency = pdevice->has_sparse_prr;
+    features->shaderResourceMinLod = true;
+diff --git a/src/freedreno/vulkan/tu_formats.cc b/src/freedreno/vulkan/tu_formats.cc
+index f987079f6..fdd6a4f12 100644
+--- a/src/freedreno/vulkan/tu_formats.cc
++++ b/src/freedreno/vulkan/tu_formats.cc
+@@ -65,6 +65,20 @@ tu6_format_texture(enum pipe_format format, enum a6xx_tile_mode tile_mode,
+    return fmt;
+ }
+ 
++bool
++tu_is_r8g8(enum pipe_format format)
++{
++   return (util_format_get_blocksize(format) == 2) &&
++          (util_format_get_nr_components(format) == 2);
++}
++
++bool
++tu_is_r8g8_compatible(enum pipe_format format)
++{
++   return (util_format_get_blocksize(format) == 2) &&
++          !util_format_is_depth_or_stencil(format);
++}
++
+ static enum fd6_ubwc_compat_type
+ tu6_ubwc_compat_mode(const struct fd_dev_info *info, VkFormat format)
+ {
+@@ -97,6 +111,50 @@ tu6_mutable_format_list_ubwc_compatible(const struct fd_dev_info *info,
+    return true;
+ }
+ 
++bool
++tu6_mutable_format_list_requires_linear(
++   VkFormat format, const VkImageFormatListCreateInfo *fmt_list)
++{
++   enum pipe_format pipe_format = vk_format_to_pipe_format(format);
++
++   /* r8g8 formats use a different tiled layout from other compatible 16-bit
++    * formats. if there is no format list, any compatible format is allowed.
++    */
++   if (tu_is_r8g8_compatible(pipe_format)) {
++      if (!fmt_list || !fmt_list->viewFormatCount)
++         return true;
++
++      bool has_r8g8 = false;
++      bool has_non_r8g8 = false;
++
++      for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
++         if (tu_is_r8g8(vk_format_to_pipe_format(fmt_list->pViewFormats[i])))
++            has_r8g8 = true;
++         else
++            has_non_r8g8 = true;
++      }
++
++      if (has_r8g8 && has_non_r8g8)
++         return true;
++   }
++
++   /* tiled mutable images cannot use a format which requires a component
++    * swap on hardware without mutable-format tiled support.
++    */
++   if (!fmt_list || !fmt_list->viewFormatCount)
++      return true;
++
++   for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
++      enum pipe_format view_format =
++         vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
++
++      if (tu6_format_texture(view_format, TILE6_LINEAR, false).swap)
++         return true;
++   }
++
++   return false;
++}
++
+ static bool
+ tu_format_linear_filtering_supported(struct tu_physical_device *physical_device,
+                                      VkFormat vk_format)
+@@ -572,6 +630,23 @@ tu_get_image_format_properties(
+       if (vk_format_get_plane_count(info->format) > 1)
+          return tu_image_unsupported_format(pImageFormatProperties);
+ 
++      /* sparse images must remain tiled. older A7xx hardware cannot keep
++       * every mutable format list tiled, so reject those combinations before
++       * image creation instead of falling back to a linear layout.
++       */
++      if ((info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) &&
++          !vk_format_is_depth_or_stencil(info->format) &&
++          !physical_device->info->props.ubwc_all_formats_compatible) {
++         const VkImageFormatListCreateInfo *format_list =
++            vk_find_struct_const(info->pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
++
++         if (!tu6_mutable_format_list_ubwc_compatible(physical_device->info,
++                                                      format_list) &&
++             tu6_mutable_format_list_requires_linear(info->format,
++                                                     format_list))
++            return tu_image_unsupported_format(pImageFormatProperties);
++      }
++
+       /* Sparse isn't compatible with HIC */
+       if (info->usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT)
+          return tu_image_unsupported_format(pImageFormatProperties);
+diff --git a/src/freedreno/vulkan/tu_formats.h b/src/freedreno/vulkan/tu_formats.h
+index ef26f6bdf..1986766cf 100644
+--- a/src/freedreno/vulkan/tu_formats.h
++++ b/src/freedreno/vulkan/tu_formats.h
+@@ -29,7 +29,11 @@ struct tu_native_format tu6_format_color(enum pipe_format format, enum a6xx_tile
+ struct tu_native_format tu6_format_texture(enum pipe_format format, enum a6xx_tile_mode tile_mode,
+                                            bool is_mutable);
+ 
++bool tu_is_r8g8(enum pipe_format format);
++bool tu_is_r8g8_compatible(enum pipe_format format);
+ bool tu6_mutable_format_list_ubwc_compatible(const struct fd_dev_info *info,
+                                              const VkImageFormatListCreateInfo *fmt_list);
++bool tu6_mutable_format_list_requires_linear(
++   VkFormat format, const VkImageFormatListCreateInfo *fmt_list);
+ 
+ #endif /* TU_FORMATS_H */
+diff --git a/src/freedreno/vulkan/tu_image.cc b/src/freedreno/vulkan/tu_image.cc
+index c43e21128..cc7a9aeae 100644
+--- a/src/freedreno/vulkan/tu_image.cc
++++ b/src/freedreno/vulkan/tu_image.cc
+@@ -122,20 +122,6 @@ tu_format_for_aspect(enum pipe_format format, VkImageAspectFlags aspect_mask)
+    }
+ }
+ 
+-static bool
+-tu_is_r8g8(enum pipe_format format)
+-{
+-   return (util_format_get_blocksize(format) == 2) &&
+-          (util_format_get_nr_components(format) == 2);
+-}
+-
+-static bool
+-tu_is_r8g8_compatible(enum pipe_format format)
+-{
+-   return (util_format_get_blocksize(format) == 2) &&
+-          !util_format_is_depth_or_stencil(format);
+-}
+-
+ uint64_t
+ tu_layer_address(const struct fdl6_view *iview, uint32_t layer)
+ {
+@@ -429,55 +415,6 @@ ubwc_possible(struct tu_device *device,
+    return true;
+ }
+ 
+-/* R8G8 have a different block width/height and height alignment from other
+- * formats that would normally be compatible (like R16), and so if we are
+- * trying to, for example, sample R16 as R8G8 we need to demote to linear.
+- */
+-static bool
+-format_list_reinterprets_r8g8_r16(enum pipe_format format, const VkImageFormatListCreateInfo *fmt_list)
+-{
+-   /* Check if it's actually a 2-cpp color format. */
+-   if (!tu_is_r8g8_compatible(format))
+-      return false;
+-
+-   /* If there's no format list, then the app may reinterpret to any compatible
+-    * format.
+-    */
+-   if (!fmt_list || !fmt_list->viewFormatCount)
+-      return true;
+-
+-   bool has_r8g8 = false;
+-   bool has_non_r8g8 = false;
+-   for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
+-      enum pipe_format format =
+-         vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
+-      if (tu_is_r8g8(format))
+-         has_r8g8 = true;
+-      else
+-         has_non_r8g8 = true;
+-   }
+-   return has_r8g8 && has_non_r8g8;
+-}
+-
+-static bool
+-format_list_has_swaps(const VkImageFormatListCreateInfo *fmt_list)
+-{
+-   /* If there's no format list, then the app may reinterpret to any compatible
+-    * format, and presumably one would have the swap set.
+-    */
+-   if (!fmt_list || !fmt_list->viewFormatCount)
+-      return true;
+-
+-   for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
+-      enum pipe_format format =
+-         vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
+-
+-      if (tu6_format_texture(format, TILE6_LINEAR, false).swap)
+-         return true;
+-   }
+-   return false;
+-}
+-
+ static bool
+ format_list_has_uncompressed_format(
+    const VkImageFormatListCreateInfo *fmt_list)
+@@ -635,10 +572,8 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
+                ubwc_enabled = false;
+             }
+ 
+-            bool r8g8_r16 = format_list_reinterprets_r8g8_r16(vk_format_to_pipe_format(image->vk.format), fmt_list);
+-            bool fmt_list_has_swaps = format_list_has_swaps(fmt_list);
+-
+-            if (r8g8_r16 || fmt_list_has_swaps) {
++            if (tu6_mutable_format_list_requires_linear(image->vk.format,
++                                                        fmt_list)) {
+                ubwc_enabled = false;
+                force_linear_tile = true;
+             }

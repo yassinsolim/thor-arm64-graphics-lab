@@ -1,0 +1,917 @@
+{
+  "renderer": "forward_plus",
+  "driver": "vulkan",
+  "pid": 402124,
+  "exit_code": 0,
+  "ready": true,
+  "summary": {
+    "driver": "vulkan",
+    "frames": 508,
+    "gi": 1,
+    "height": 720,
+    "max_ms": 58.64,
+    "min_ms": 7.374,
+    "p50_ms": 38.593,
+    "p95_ms": 52.766,
+    "render_height": 360,
+    "render_width": 640,
+    "renderer": "forward_plus",
+    "scale": 0.5,
+    "seed": 20261002,
+    "width": 1280,
+    "window_height": 1080,
+    "window_width": 1920
+  },
+  "fail": null,
+  "stop": null,
+  "wall_s": 21.338362859009067,
+  "gpu_busy": 0.9339665991566842,
+  "cpu_s": 4.49,
+  "focus": 769,
+  "display": ":0",
+  "samples": [
+    {
+      "t": 0.001,
+      "rss_kb": 500964,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 53.3,
+      "mem_available_kb": 9364684,
+      "focus": 769,
+      "fdinfo_engine_ns": 5125262094
+    },
+    {
+      "t": 0.209,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 55.7,
+      "mem_available_kb": 9348548,
+      "focus": 769,
+      "fdinfo_engine_ns": 5300603808
+    },
+    {
+      "t": 0.425,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.1,
+      "mem_available_kb": 9348296,
+      "focus": 769,
+      "fdinfo_engine_ns": 5512477815
+    },
+    {
+      "t": 0.64,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.5,
+      "mem_available_kb": 9348296,
+      "focus": 769,
+      "fdinfo_engine_ns": 5759904008
+    },
+    {
+      "t": 0.861,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.1,
+      "mem_available_kb": 9509376,
+      "focus": 769,
+      "fdinfo_engine_ns": 5936913117
+    },
+    {
+      "t": 1.068,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.5,
+      "mem_available_kb": 9507892,
+      "focus": 769,
+      "fdinfo_engine_ns": 6147332798
+    },
+    {
+      "t": 1.275,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.9,
+      "mem_available_kb": 9507136,
+      "focus": 769,
+      "fdinfo_engine_ns": 6354987845
+    },
+    {
+      "t": 1.482,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9506376,
+      "focus": 769,
+      "fdinfo_engine_ns": 6561088204
+    },
+    {
+      "t": 1.691,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9506376,
+      "focus": 769,
+      "fdinfo_engine_ns": 6767792678
+    },
+    {
+      "t": 1.898,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9506140,
+      "focus": 769,
+      "fdinfo_engine_ns": 6972880435
+    },
+    {
+      "t": 2.105,
+      "rss_kb": 501028,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9506140,
+      "focus": 769,
+      "fdinfo_engine_ns": 7199820325
+    },
+    {
+      "t": 2.311,
+      "rss_kb": 502140,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.9,
+      "mem_available_kb": 9503188,
+      "focus": 769,
+      "fdinfo_engine_ns": 7372405321
+    },
+    {
+      "t": 2.517,
+      "rss_kb": 502152,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9493872,
+      "focus": 769,
+      "fdinfo_engine_ns": 7598675786
+    },
+    {
+      "t": 2.724,
+      "rss_kb": 502156,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9485076,
+      "focus": 769,
+      "fdinfo_engine_ns": 7820347397
+    },
+    {
+      "t": 2.936,
+      "rss_kb": 502156,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9484824,
+      "focus": 769,
+      "fdinfo_engine_ns": 8038216091
+    },
+    {
+      "t": 3.152,
+      "rss_kb": 502156,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9484824,
+      "focus": 769,
+      "fdinfo_engine_ns": 8244713015
+    },
+    {
+      "t": 3.367,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9484824,
+      "focus": 769,
+      "fdinfo_engine_ns": 8447294054
+    },
+    {
+      "t": 3.582,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9484824,
+      "focus": 769,
+      "fdinfo_engine_ns": 8684898424
+    },
+    {
+      "t": 3.797,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9484824,
+      "focus": 769,
+      "fdinfo_engine_ns": 8872524722
+    },
+    {
+      "t": 4.012,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9484080,
+      "focus": 769,
+      "fdinfo_engine_ns": 9106214666
+    },
+    {
+      "t": 4.228,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9484080,
+      "focus": 769,
+      "fdinfo_engine_ns": 9294527424
+    },
+    {
+      "t": 4.439,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.9,
+      "mem_available_kb": 9484080,
+      "focus": 769,
+      "fdinfo_engine_ns": 9497378409
+    },
+    {
+      "t": 4.646,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.9,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 9703147728
+    },
+    {
+      "t": 4.853,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 9916085952
+    },
+    {
+      "t": 5.061,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 56.9,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 10126668241
+    },
+    {
+      "t": 5.268,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 10336745425
+    },
+    {
+      "t": 5.474,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 10544690474
+    },
+    {
+      "t": 5.681,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 10749861721
+    },
+    {
+      "t": 5.889,
+      "rss_kb": 502160,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 10951350520
+    },
+    {
+      "t": 6.095,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 11151194266
+    },
+    {
+      "t": 6.302,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 11349814471
+    },
+    {
+      "t": 6.509,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 11594267176
+    },
+    {
+      "t": 6.716,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 11785635506
+    },
+    {
+      "t": 6.923,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 11974398418
+    },
+    {
+      "t": 7.127,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 12201331693
+    },
+    {
+      "t": 7.332,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 12378537471
+    },
+    {
+      "t": 7.537,
+      "rss_kb": 502164,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 12594261530
+    },
+    {
+      "t": 7.745,
+      "rss_kb": 502172,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9483840,
+      "focus": 769,
+      "fdinfo_engine_ns": 12803482045
+    },
+    {
+      "t": 7.952,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483588,
+      "focus": 769,
+      "fdinfo_engine_ns": 13009238134
+    },
+    {
+      "t": 8.158,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483364,
+      "focus": 769,
+      "fdinfo_engine_ns": 13215519951
+    },
+    {
+      "t": 8.365,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9483364,
+      "focus": 769,
+      "fdinfo_engine_ns": 13424455207
+    },
+    {
+      "t": 8.574,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9483364,
+      "focus": 769,
+      "fdinfo_engine_ns": 13634124785
+    },
+    {
+      "t": 8.78,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9483112,
+      "focus": 769,
+      "fdinfo_engine_ns": 13843605354
+    },
+    {
+      "t": 8.989,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9482648,
+      "focus": 769,
+      "fdinfo_engine_ns": 14055895870
+    },
+    {
+      "t": 9.195,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9482648,
+      "focus": 769,
+      "fdinfo_engine_ns": 14266569928
+    },
+    {
+      "t": 9.403,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9507132,
+      "focus": 769,
+      "fdinfo_engine_ns": 14475268517
+    },
+    {
+      "t": 9.608,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9506120,
+      "focus": 769,
+      "fdinfo_engine_ns": 14678983408
+    },
+    {
+      "t": 9.814,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9509240,
+      "focus": 769,
+      "fdinfo_engine_ns": 14880525123
+    },
+    {
+      "t": 10.021,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9507432,
+      "focus": 769,
+      "fdinfo_engine_ns": 15080334076
+    },
+    {
+      "t": 10.228,
+      "rss_kb": 502176,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.3,
+      "mem_available_kb": 9506436,
+      "focus": 769,
+      "fdinfo_engine_ns": 15273833603
+    },
+    {
+      "t": 10.435,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9505440,
+      "focus": 769,
+      "fdinfo_engine_ns": 15499288443
+    },
+    {
+      "t": 10.642,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9504936,
+      "focus": 769,
+      "fdinfo_engine_ns": 15717636302
+    },
+    {
+      "t": 10.849,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9503956,
+      "focus": 769,
+      "fdinfo_engine_ns": 15898190986
+    },
+    {
+      "t": 11.055,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9503956,
+      "focus": 769,
+      "fdinfo_engine_ns": 16110612127
+    },
+    {
+      "t": 11.262,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9503956,
+      "focus": 769,
+      "fdinfo_engine_ns": 16316571550
+    },
+    {
+      "t": 11.469,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9503696,
+      "focus": 769,
+      "fdinfo_engine_ns": 16516050657
+    },
+    {
+      "t": 11.677,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9503436,
+      "focus": 769,
+      "fdinfo_engine_ns": 16745099921
+    },
+    {
+      "t": 11.884,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 16933766894
+    },
+    {
+      "t": 12.091,
+      "rss_kb": 502180,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 17155363502
+    },
+    {
+      "t": 12.298,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 17335879957
+    },
+    {
+      "t": 12.505,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 17576718128
+    },
+    {
+      "t": 12.712,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 17754776976
+    },
+    {
+      "t": 12.918,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 17976435200
+    },
+    {
+      "t": 13.125,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 18154152748
+    },
+    {
+      "t": 13.331,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 18374135192
+    },
+    {
+      "t": 13.539,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 18592610762
+    },
+    {
+      "t": 13.745,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 18810402372
+    },
+    {
+      "t": 13.952,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 57.7,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 18983597316
+    },
+    {
+      "t": 14.158,
+      "rss_kb": 502184,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9502696,
+      "focus": 769,
+      "fdinfo_engine_ns": 19198590699
+    },
+    {
+      "t": 14.366,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9508212,
+      "focus": 769,
+      "fdinfo_engine_ns": 19412652308
+    },
+    {
+      "t": 14.573,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9507940,
+      "focus": 769,
+      "fdinfo_engine_ns": 19616069022
+    },
+    {
+      "t": 14.78,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9507448,
+      "focus": 769,
+      "fdinfo_engine_ns": 19817315373
+    },
+    {
+      "t": 14.987,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9506908,
+      "focus": 769,
+      "fdinfo_engine_ns": 20015746097
+    },
+    {
+      "t": 15.195,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9506152,
+      "focus": 769,
+      "fdinfo_engine_ns": 20250568487
+    },
+    {
+      "t": 15.401,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9506152,
+      "focus": 769,
+      "fdinfo_engine_ns": 20447632752
+    },
+    {
+      "t": 15.61,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9505648,
+      "focus": 769,
+      "fdinfo_engine_ns": 20643260143
+    },
+    {
+      "t": 15.816,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9505388,
+      "focus": 769,
+      "fdinfo_engine_ns": 20877574982
+    },
+    {
+      "t": 16.023,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.7,
+      "mem_available_kb": 9504892,
+      "focus": 769,
+      "fdinfo_engine_ns": 21070532737
+    },
+    {
+      "t": 16.23,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9504892,
+      "focus": 769,
+      "fdinfo_engine_ns": 21262868149
+    },
+    {
+      "t": 16.437,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9504892,
+      "focus": 769,
+      "fdinfo_engine_ns": 21490004811
+    },
+    {
+      "t": 16.644,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9504892,
+      "focus": 769,
+      "fdinfo_engine_ns": 21677910900
+    },
+    {
+      "t": 16.851,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9506664,
+      "focus": 769,
+      "fdinfo_engine_ns": 21897322092
+    },
+    {
+      "t": 17.058,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9506404,
+      "focus": 769,
+      "fdinfo_engine_ns": 22098509795
+    },
+    {
+      "t": 17.266,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.5,
+      "mem_available_kb": 9506144,
+      "focus": 769,
+      "fdinfo_engine_ns": 22291754476
+    },
+    {
+      "t": 17.471,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.1,
+      "mem_available_kb": 9506144,
+      "focus": 769,
+      "fdinfo_engine_ns": 22493340512
+    },
+    {
+      "t": 17.676,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.7,
+      "mem_available_kb": 9505120,
+      "focus": 769,
+      "fdinfo_engine_ns": 22725167017
+    },
+    {
+      "t": 17.886,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9503904,
+      "focus": 769,
+      "fdinfo_engine_ns": 22919796543
+    },
+    {
+      "t": 18.101,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9512556,
+      "focus": 769,
+      "fdinfo_engine_ns": 23141985547
+    },
+    {
+      "t": 18.314,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9512080,
+      "focus": 769,
+      "fdinfo_engine_ns": 23362281843
+    },
+    {
+      "t": 18.526,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 60.1,
+      "mem_available_kb": 9511072,
+      "focus": 769,
+      "fdinfo_engine_ns": 23577530901
+    },
+    {
+      "t": 18.739,
+      "rss_kb": 502192,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9510568,
+      "focus": 769,
+      "fdinfo_engine_ns": 23779409021
+    },
+    {
+      "t": 18.952,
+      "rss_kb": 502196,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 58.9,
+      "mem_available_kb": 9509312,
+      "focus": 769,
+      "fdinfo_engine_ns": 24005966720
+    },
+    {
+      "t": 19.163,
+      "rss_kb": 502196,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 60.1,
+      "mem_available_kb": 9509312,
+      "focus": 769,
+      "fdinfo_engine_ns": 24211109369
+    },
+    {
+      "t": 19.371,
+      "rss_kb": 502196,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.7,
+      "mem_available_kb": 9509060,
+      "focus": 769,
+      "fdinfo_engine_ns": 24413802487
+    },
+    {
+      "t": 19.578,
+      "rss_kb": 502196,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.7,
+      "mem_available_kb": 9509060,
+      "focus": 769,
+      "fdinfo_engine_ns": 24610791493
+    },
+    {
+      "t": 19.785,
+      "rss_kb": 502196,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.7,
+      "mem_available_kb": 9508296,
+      "focus": 769,
+      "fdinfo_engine_ns": 24815961906
+    },
+    {
+      "t": 19.99,
+      "rss_kb": 502196,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.7,
+      "mem_available_kb": 9507356,
+      "focus": 769,
+      "fdinfo_engine_ns": 25020432057
+    },
+    {
+      "t": 20.018,
+      "rss_kb": 502216,
+      "gpu_hz": 680000000,
+      "gpu_temp_c": 59.3,
+      "mem_available_kb": 9507356,
+      "focus": 769,
+      "fdinfo_engine_ns": 25054580285
+    }
+  ],
+  "log": "$HOME/godot-arm64-benchmark/results/Linux-aarch64/forward_plus-scale0.5.log"
+}

@@ -1,0 +1,17 @@
+Optional. Do not run this during the first benchmark, and do not run it
+unless you are at the keyboard. It needs sudo / CAP_PERFMON and samples the
+whole GPU, so the Godot window has to be the thing on screen.
+
+Start a second forward_plus run, wait for BENCHMARK_MEASURE_START and the
+BENCHMARK_PID line, then:
+
+sudo python3 $HOME/godot-arm64-benchmark/msm_perfcntr_sample.py \
+  --seconds 20 \
+  --pid PID \
+  --display ${DISPLAY:-:0} \
+  --no-focus-check \
+  --out $HOME/godot-arm64-benchmark/results/Linux-aarch64/perfcntr-forward_plus.json
+
+Use --focus-app N instead of --no-focus-check when xprop shows a numeric
+GAMESCOPE_FOCUSED_APP for this window. The default focus id is 2074920 and
+will refuse a Godot window.

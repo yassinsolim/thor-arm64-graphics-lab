@@ -1,0 +1,143 @@
+diff --git a/tests/d3d12_resource.c b/tests/d3d12_resource.c
+index 7ca4d5a..54e65dd 100644
+--- a/tests/d3d12_resource.c
++++ b/tests/d3d12_resource.c
+@@ -795,6 +795,126 @@ void test_create_placed_resource_size(void)
+     ID3D12Device_Release(device);
+ }
+ 
++/* The default Windows test build stubs get_driver_properties(). Ask the
++ * device extension directly so this check exists in that build. */
++static bool resource_test_is_turnip(ID3D12Device *device)
++{
++    VkPhysicalDeviceDriverPropertiesKHR driver_properties;
++    VkPhysicalDeviceProperties2 device_properties2;
++    PFN_vkGetPhysicalDeviceProperties2 pfn_vkGetPhysicalDeviceProperties2;
++    VkPhysicalDevice vk_physical_device;
++    VkInstance vk_instance;
++    ID3D12DeviceExt *ext;
++    VkDevice vk_device;
++
++    if (!init_vulkan_loader())
++        return false;
++
++    if (FAILED(ID3D12Device_QueryInterface(device, &IID_ID3D12DeviceExt, (void **)&ext)))
++        return false;
++
++    ID3D12DeviceExt_GetVulkanHandles(ext, &vk_instance, &vk_physical_device, &vk_device);
++    ID3D12DeviceExt_Release(ext);
++
++    pfn_vkGetPhysicalDeviceProperties2
++            = (void *)pfn_vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceProperties2");
++    if (!pfn_vkGetPhysicalDeviceProperties2)
++        return false;
++
++    memset(&device_properties2, 0, sizeof(device_properties2));
++    device_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
++    memset(&driver_properties, 0, sizeof(driver_properties));
++    driver_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES_KHR;
++    device_properties2.pNext = &driver_properties;
++    pfn_vkGetPhysicalDeviceProperties2(vk_physical_device, &device_properties2);
++    return driver_properties.driverID == VK_DRIVER_ID_MESA_TURNIP;
++}
++
++void test_committed_vs_heap_buffer_va_alignment(void)
++{
++    D3D12_GPU_VIRTUAL_ADDRESS committed_va, placed_va;
++    D3D12_HEAP_PROPERTIES heap_properties;
++    D3D12_RESOURCE_DESC resource_desc;
++    D3D12_HEAP_DESC heap_desc;
++    ID3D12Resource *committed, *placed;
++    const UINT64 align = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
++    bool turnip = false;
++    ID3D12Device *device;
++    ID3D12Heap *heap;
++    HRESULT hr;
++
++    if (!(device = create_device()))
++    {
++        skip("Failed to create device.\n");
++        return;
++    }
++
++    turnip = resource_test_is_turnip(device);
++
++    memset(&heap_properties, 0, sizeof(heap_properties));
++    heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
++
++    memset(&resource_desc, 0, sizeof(resource_desc));
++    resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
++    resource_desc.Width = align;
++    resource_desc.Height = 1;
++    resource_desc.DepthOrArraySize = 1;
++    resource_desc.MipLevels = 1;
++    resource_desc.Format = DXGI_FORMAT_UNKNOWN;
++    resource_desc.SampleDesc.Count = 1;
++    resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
++
++    hr = ID3D12Device_CreateCommittedResource(device, &heap_properties, D3D12_HEAP_FLAG_NONE,
++            &resource_desc, D3D12_RESOURCE_STATE_COMMON, NULL,
++            &IID_ID3D12Resource, (void **)&committed);
++    ok(hr == S_OK, "Failed to create committed buffer, hr %#x.\n", (int)hr);
++    if (FAILED(hr))
++        goto done;
++    committed_va = ID3D12Resource_GetGPUVirtualAddress(committed);
++
++    memset(&heap_desc, 0, sizeof(heap_desc));
++    heap_desc.SizeInBytes = align;
++    heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
++    heap_desc.Alignment = align;
++    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
++    hr = ID3D12Device_CreateHeap(device, &heap_desc, &IID_ID3D12Heap, (void **)&heap);
++    ok(hr == S_OK, "Failed to create buffer heap, hr %#x.\n", (int)hr);
++    if (FAILED(hr))
++    {
++        ID3D12Resource_Release(committed);
++        goto done;
++    }
++
++    hr = ID3D12Device_CreatePlacedResource(device, heap, 0, &resource_desc,
++            D3D12_RESOURCE_STATE_COMMON, NULL, &IID_ID3D12Resource, (void **)&placed);
++    ok(hr == S_OK, "Failed to create placed buffer, hr %#x.\n", (int)hr);
++    if (FAILED(hr))
++    {
++        ID3D12Heap_Release(heap);
++        ID3D12Resource_Release(committed);
++        goto done;
++    }
++    placed_va = ID3D12Resource_GetGPUVirtualAddress(placed);
++
++    trace("committed VA %#"PRIx64", placed VA %#"PRIx64", turnip %u.\n",
++            committed_va, placed_va, turnip);
++
++    ok(placed_va && !(placed_va & (align - 1)),
++            "Placed buffer GPU VA %#"PRIx64" is not 64 KiB aligned.\n", placed_va);
++
++    /* Buffer heaps request a 64 KiB GPU VA. Committed buffers currently do not.
++     * On Turnip that shows up as a committed VA that is not 64 KiB aligned. */
++    bug_if(turnip)
++    ok(committed_va && !(committed_va & (align - 1)),
++            "Committed buffer GPU VA %#"PRIx64" is not 64 KiB aligned.\n", committed_va);
++
++    ID3D12Resource_Release(placed);
++    ID3D12Heap_Release(heap);
++    ID3D12Resource_Release(committed);
++done:
++    ID3D12Device_Release(device);
++}
++
+ void test_create_placed_resource(void)
+ {
+     D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
+diff --git a/tests/d3d12_tests.h b/tests/d3d12_tests.h
+index 2ee5957..89ccb6c 100644
+--- a/tests/d3d12_tests.h
++++ b/tests/d3d12_tests.h
+@@ -41,6 +41,7 @@ decl_test(test_create_command_signature);
+ decl_test(test_create_committed_resource);
+ decl_test(test_create_heap);
+ decl_test(test_create_placed_resource);
++decl_test(test_committed_vs_heap_buffer_va_alignment);
+ decl_test(test_create_placed_resource_size);
+ decl_test(test_create_reserved_resource);
+ decl_test(test_create_descriptor_heap);

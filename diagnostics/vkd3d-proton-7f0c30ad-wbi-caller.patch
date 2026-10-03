@@ -1,0 +1,142 @@
+--- libs/vkd3d/command.c
++++ libs/vkd3d/command.c
+@@ -19915,3 +19915,130 @@
+ }
+ 
++/* Read-only attribution for an invalid WriteBufferImmediate destination.
++ * Nothing here changes recording, validation, or the returned command-list state. */
++static bool vkd3d_user_region_readable(const void *address, size_t size)
++{
++    MEMORY_BASIC_INFORMATION info;
++    uintptr_t start = (uintptr_t)address;
++    uintptr_t region_end;
++    DWORD protect;
++
++    if (!address || !size || !VirtualQuery(address, &info, sizeof(info)))
++        return false;
++    if (info.State != MEM_COMMIT || (info.Protect & PAGE_GUARD))
++        return false;
++
++    protect = info.Protect & 0xff;
++    if (protect != PAGE_READONLY && protect != PAGE_READWRITE && protect != PAGE_WRITECOPY
++            && protect != PAGE_EXECUTE_READ && protect != PAGE_EXECUTE_READWRITE
++            && protect != PAGE_EXECUTE_WRITECOPY)
++        return false;
++
++    region_end = (uintptr_t)info.BaseAddress + info.RegionSize;
++    return start >= (uintptr_t)info.BaseAddress && size <= region_end - start;
++}
++
++static void vkd3d_log_code_address(const char *label, const void *address)
++{
++    char path[MAX_PATH];
++    HMODULE module = NULL;
++    DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
++
++    if (!vkd3d_user_region_readable(address, 1))
++    {
++        WARN("WBI caller %s address %p is not a readable code address.\n", label, address);
++        return;
++    }
++
++    path[0] = '\0';
++    if (!GetModuleHandleExA(flags, (const char *)address, &module) || !module
++            || !GetModuleFileNameA(module, path, ARRAY_SIZE(path)))
++    {
++        WARN("WBI caller %s address %p has no loaded module.\n", label, address);
++        return;
++    }
++
++    WARN("WBI caller %s address %p module %p rva %#llx path \"%s\".\n",
++            label, address, module,
++            (unsigned long long)((uintptr_t)address - (uintptr_t)module), path);
++}
++
++#if defined(__arm64ec__)
++struct vkd3d_chpe_v2_cpu_area
++{
++    uint8_t in_simulation;
++    uint8_t in_syscall_callback;
++    uint8_t pad[6];
++    uint64_t emulator_stack_base;
++    uint64_t emulator_stack_limit;
++    void *context_amd64;
++};
++
++static void vkd3d_log_x64_caller(void)
++{
++    struct vkd3d_chpe_v2_cpu_area area;
++    unsigned char *teb = (unsigned char *)NtCurrentTeb();
++    unsigned char *context;
++    void *area_ptr, *pc, *sp, *stack_slot;
++
++    /* Windows and FEX use x64 TEB + 0x1788 as ChpeV2CpuAreaInfo.
++     * Its context at +0x18 is an ARM64EC_NT_CONTEXT: Pc at 0xf8 is Rip, Sp at 0x98 is Rsp. */
++    if (!vkd3d_user_region_readable(teb + 0x1788, sizeof(area_ptr)))
++    {
++        WARN("WBI caller x64 cpu area is outside the TEB.\n");
++        return;
++    }
++
++    area_ptr = *(void **)(teb + 0x1788);
++    if (!vkd3d_user_region_readable(area_ptr, sizeof(area)))
++    {
++        WARN("WBI caller x64 cpu area %p is unavailable.\n", area_ptr);
++        return;
++    }
++
++    memcpy(&area, area_ptr, sizeof(area));
++    context = area.context_amd64;
++    if (!vkd3d_user_region_readable(context + 0x98, sizeof(sp))
++            || !vkd3d_user_region_readable(context + 0xf8, sizeof(pc)))
++    {
++        WARN("WBI caller x64 context %p is unavailable, simulation %u.\n",
++                context, area.in_simulation);
++        return;
++    }
++
++    memcpy(&sp, context + 0x98, sizeof(sp));
++    memcpy(&pc, context + 0xf8, sizeof(pc));
++    WARN("WBI caller x64 simulation %u pc %p sp %p.\n", area.in_simulation, pc, sp);
++    vkd3d_log_code_address("x64-pc", pc);
++
++    stack_slot = NULL;
++    if (vkd3d_user_region_readable(sp, sizeof(stack_slot)))
++    {
++        memcpy(&stack_slot, sp, sizeof(stack_slot));
++        vkd3d_log_code_address("x64-stack", stack_slot);
++    }
++    else
++    {
++        WARN("WBI caller x64 stack %p is not readable.\n", sp);
++    }
++}
++#endif
++
++static void vkd3d_log_wbi_caller(void *return_address)
++{
++    void *frames[8];
++    USHORT frame_count, i;
++
++    vkd3d_log_code_address("ret", return_address);
++    frame_count = RtlCaptureStackBackTrace(0, ARRAY_SIZE(frames), frames, NULL);
++    WARN("WBI caller stack frames %u.\n", frame_count);
++    for (i = 0; i < frame_count; ++i)
++        vkd3d_log_code_address("stack", frames[i]);
++    if (!frame_count)
++        WARN("WBI caller stack is unavailable.\n");
++#if defined(__arm64ec__)
++    vkd3d_log_x64_caller();
++#endif
++}
++
+ static void STDMETHODCALLTYPE d3d12_command_list_WriteBufferImmediate(d3d12_command_list_iface *iface,
+@@ -19921,2 +20048,3 @@
+     struct d3d12_command_list *list = impl_from_ID3D12GraphicsCommandList(iface);
++    void *wbi_return_address = __builtin_return_address(0);
+     const struct vkd3d_vk_device_procs *vk_procs = &list->device->vk_procs;
+@@ -19940,2 +20068,4 @@
+         {
++            if (parameters[i].Dest == 0x600 || parameters[i].Dest == 0x604)
++                vkd3d_log_wbi_caller(wbi_return_address);
+             d3d12_command_list_mark_as_invalid(list,

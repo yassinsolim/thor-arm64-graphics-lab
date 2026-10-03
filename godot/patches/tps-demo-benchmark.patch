@@ -1,0 +1,553 @@
+diff --git a/benchmark/benchmark_camera.gd b/benchmark/benchmark_camera.gd
+new file mode 100644
+index 0000000..0c8f6e3
+--- /dev/null
++++ b/benchmark/benchmark_camera.gd
+@@ -0,0 +1,169 @@
++class_name BenchmarkCamera
++extends Camera3D
++
++const BenchmarkConfig = preload("res://benchmark/benchmark_config.gd")
++
++var _elapsed: float = 0.0
++var _measuring: bool = false
++var _measure_elapsed: float = 0.0
++var _dts: Array[float] = []
++var _segment_lengths: PackedFloat32Array = PackedFloat32Array()
++var _path_length: float = 0.0
++
++
++static func attach(level: Node3D) -> void:
++	var cam := BenchmarkCamera.new()
++	cam.name = "BenchmarkCamera"
++	level.add_child(cam)
++
++
++func _ready() -> void:
++	current = true
++	_build_path()
++	BenchmarkConfig.apply_window()
++	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
++	var size := BenchmarkConfig.render_size()
++	var window_size := DisplayServer.window_get_size()
++	print(
++		"BENCHMARK_READY renderer=%s driver=%s size=%dx%d window=%dx%d seed=%d warmup_sec=%.1f measure_sec=%.1f"
++		% [
++			RenderingServer.get_current_rendering_method(),
++			RenderingServer.get_current_rendering_driver_name(),
++			size.x,
++			size.y,
++			window_size.x,
++			window_size.y,
++			BenchmarkConfig.SEED,
++			BenchmarkConfig.WARMUP_SEC,
++			BenchmarkConfig.MEASURE_SEC,
++		]
++	)
++
++
++func _process(delta: float) -> void:
++	# lock before the measured window. doing it every measured frame
++	# resubmits vsync state and was idling the gpu.
++	if not _measuring:
++		BenchmarkConfig.lock_render()
++	_elapsed += delta
++	_place(_elapsed * BenchmarkConfig.SPEED_M_S)
++	if _elapsed >= BenchmarkConfig.TIMEOUT_SEC and not _measuring:
++		_fail("timeout_before_measure")
++		return
++	if not _measuring:
++		if _elapsed >= BenchmarkConfig.WARMUP_SEC:
++			_measuring = true
++			_measure_elapsed = 0.0
++			print("BENCHMARK_MEASURE_START")
++		return
++	if _elapsed >= BenchmarkConfig.TIMEOUT_SEC:
++		_fail("timeout_during_measure")
++		return
++	_measure_elapsed += delta
++	_dts.append(delta)
++	if _measure_elapsed >= BenchmarkConfig.MEASURE_SEC:
++		_finish()
++
++
++func _build_path() -> void:
++	var points := BenchmarkConfig.POINTS
++	_segment_lengths = PackedFloat32Array()
++	_path_length = 0.0
++	for i in points.size():
++		var a: Vector3 = points[i]
++		var b: Vector3 = points[(i + 1) % points.size()]
++		var length := a.distance_to(b)
++		_segment_lengths.append(length)
++		_path_length += length
++
++
++func _place(distance: float) -> void:
++	if _path_length <= 0.0:
++		return
++	var along := fposmod(distance, _path_length)
++	var points := BenchmarkConfig.POINTS
++	for i in points.size():
++		var length := _segment_lengths[i]
++		if along > length and i < points.size() - 1:
++			along -= length
++			continue
++		var a: Vector3 = points[i]
++		var b: Vector3 = points[(i + 1) % points.size()]
++		var t := 0.0 if length <= 0.0 else along / length
++		global_position = a.lerp(b, t)
++		var ahead := b - a
++		if ahead.length_squared() < 0.0001:
++			ahead = Vector3(0, 0, -1)
++		look_at(global_position + ahead, Vector3.UP)
++		return
++
++
++func _print_frame_stats() -> void:
++	var rid: RID = get_viewport().get_viewport_rid()
++	var visible_draws: int = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
++	var visible_prims: int = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME)
++	var visible_objs: int = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME)
++	var shadow_draws: int = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_SHADOW, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME)
++	var shadow_prims: int = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_SHADOW, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME)
++	var shadow_objs: int = RenderingServer.viewport_get_render_info(rid, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_SHADOW, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME)
++	var gpu_ms: float = RenderingServer.viewport_get_measured_render_time_gpu(rid)
++	var cpu_ms: float = RenderingServer.viewport_get_measured_render_time_cpu(rid)
++	print(
++		"FRAME_STATS visible_draws=%d visible_prims=%d visible_objs=%d shadow_draws=%d shadow_prims=%d shadow_objs=%d gpu_ms=%.3f cpu_ms=%.3f"
++		% [visible_draws, visible_prims, visible_objs, shadow_draws, shadow_prims, shadow_objs, gpu_ms, cpu_ms]
++	)
++
++
++func _finish() -> void:
++	_print_frame_stats()
++	var render_size := BenchmarkConfig.render_size()
++	var window_size := DisplayServer.window_get_size()
++	var scale := float(Settings.config_file.get_value("video", "resolution_scale"))
++	var summary: Dictionary = {
++		"frames": _dts.size(),
++		"p50_ms": _percentile(0.50) * 1000.0,
++		"p95_ms": _percentile(0.95) * 1000.0,
++		"min_ms": _min_dt() * 1000.0,
++		"max_ms": _max_dt() * 1000.0,
++		"renderer": RenderingServer.get_current_rendering_method(),
++		"driver": RenderingServer.get_current_rendering_driver_name(),
++		"seed": BenchmarkConfig.SEED,
++		"width": render_size.x,
++		"height": render_size.y,
++		"window_width": window_size.x,
++		"window_height": window_size.y,
++		"scale": scale,
++		"gi": int(Settings.config_file.get_value("rendering", "gi_type")),
++		"render_width": int(round(float(render_size.x) * scale)),
++		"render_height": int(round(float(render_size.y) * scale)),
++	}
++	print("BENCHMARK_DONE " + JSON.stringify(summary))
++	get_tree().quit(0)
++
++
++func _fail(reason: String) -> void:
++	print("BENCHMARK_FAIL " + reason)
++	get_tree().quit(2)
++
++
++func _percentile(q: float) -> float:
++	if _dts.is_empty():
++		return 0.0
++	var ordered := _dts.duplicate()
++	ordered.sort()
++	var idx := clampi(int(floor(q * float(ordered.size() - 1))), 0, ordered.size() - 1)
++	return ordered[idx]
++
++
++func _min_dt() -> float:
++	var value := _dts[0]
++	for dt in _dts:
++		value = minf(value, dt)
++	return value
++
++
++func _max_dt() -> float:
++	var value := _dts[0]
++	for dt in _dts:
++		value = maxf(value, dt)
++	return value
+diff --git a/benchmark/benchmark_camera.gd.uid b/benchmark/benchmark_camera.gd.uid
+new file mode 100644
+index 0000000..9321441
+--- /dev/null
++++ b/benchmark/benchmark_camera.gd.uid
+@@ -0,0 +1 @@
++uid://bmarkcam00001
+diff --git a/benchmark/benchmark_config.gd b/benchmark/benchmark_config.gd
+new file mode 100644
+index 0000000..7c40881
+--- /dev/null
++++ b/benchmark/benchmark_config.gd
+@@ -0,0 +1,112 @@
++extends Object
++
++# measurement controls only. graphics quality stays on the demo defaults.
++const SEED: int = 20261002
++const WIDTH: int = 1280
++const HEIGHT: int = 720
++const WARMUP_SEC: float = 8.0
++const MEASURE_SEC: float = 20.0
++const TIMEOUT_SEC: float = 180.0
++const SPEED_M_S: float = 4.0
++
++# eye-height points along the existing player-spawn walkway.
++const POINTS: Array[Vector3] = [
++	Vector3(64.82, 0.55, 78.76),
++	Vector3(55.65, 0.55, 80.59),
++	Vector3(47.07, 0.55, 85.30),
++	Vector3(38.76, 0.55, 91.51),
++	Vector3(28.13, 0.55, 93.71),
++]
++
++
++static func enabled() -> bool:
++	return "--benchmark" in OS.get_cmdline_user_args()
++
++
++static func user_value(flag: String) -> String:
++	var args := OS.get_cmdline_user_args()
++	var index := args.find(flag)
++	if index >= 0 and index + 1 < args.size():
++		return str(args[index + 1])
++	return ""
++
++
++static func native_window() -> bool:
++	return "--bench-native" in OS.get_cmdline_user_args()
++
++
++static func apply_window() -> void:
++	var window: Window = Engine.get_main_loop().root as Window
++	window.mode = Window.MODE_WINDOWED
++	if native_window():
++		# let gamescope own the window size. 3d follows that window.
++		window.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
++	else:
++		# gamescope resizes the x window to the panel. viewport scale keeps the
++		# 3d render at 1280x720 instead of following that resize.
++		window.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT
++		window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
++		window.content_scale_size = Vector2i(WIDTH, HEIGHT)
++		DisplayServer.window_set_size(Vector2i(WIDTH, HEIGHT))
++	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
++	Engine.max_fps = 0
++	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
++
++
++static func lock_render() -> void:
++	var window: Window = Engine.get_main_loop().root as Window
++	if native_window():
++		if window.content_scale_mode != Window.CONTENT_SCALE_MODE_DISABLED:
++			window.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
++	else:
++		var wanted := Vector2i(WIDTH, HEIGHT)
++		if window.content_scale_mode != Window.CONTENT_SCALE_MODE_VIEWPORT or window.content_scale_size != wanted:
++			window.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT
++			window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
++			window.content_scale_size = wanted
++	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
++	Engine.max_fps = 0
++	apply_shade()
++
++
++static func apply_shade() -> void:
++	# unshaded keeps the fragments and drops light/material work.
++	# wireframe is polygon-line mode, not a smaller fill.
++	# flat is applied on the meshes in the level, not here.
++	var shade := user_value("--bench-shade")
++	if shade == "":
++		return
++	var vp: Viewport = Engine.get_main_loop().root.get_viewport()
++	if shade == "unshaded":
++		vp.debug_draw = Viewport.DEBUG_DRAW_UNSHADED
++	elif shade == "wireframe":
++		vp.debug_draw = Viewport.DEBUG_DRAW_WIREFRAME
++
++
++static func render_size() -> Vector2i:
++	var window: Window = Engine.get_main_loop().root as Window
++	if native_window():
++		return DisplayServer.window_get_size()
++	return window.content_scale_size
++
++
++static func prepare_settings() -> void:
++	# pin the demo's own defaults in memory. an old user://settings.ini
++	# must not change quality. do not write that file back.
++	for section in Settings.DEFAULTS:
++		for key in Settings.DEFAULTS[section]:
++			Settings.config_file.set_value(section, key, Settings.DEFAULTS[section][key])
++	Settings.config_file.set_value("video", "display_mode", Window.MODE_WINDOWED)
++	Settings.config_file.set_value("video", "vsync", DisplayServer.VSYNC_DISABLED)
++	Settings.config_file.set_value("video", "max_fps", 0)
++	var scale_text := user_value("--bench-scale")
++	if scale_text != "":
++		Settings.config_file.set_value("video", "resolution_scale", float(scale_text))
++	var gi := user_value("--bench-gi")
++	if gi == "lightmap":
++		Settings.config_file.set_value("rendering", "gi_type", Settings.GIType.LIGHTMAP_GI)
++	elif gi == "sdfgi":
++		Settings.config_file.set_value("rendering", "gi_type", Settings.GIType.SDFGI)
++	if user_value("--bench-shadows") == "off":
++		Settings.config_file.set_value("rendering", "shadow_mapping", false)
++	apply_window()
+diff --git a/benchmark/benchmark_config.gd.uid b/benchmark/benchmark_config.gd.uid
+new file mode 100644
+index 0000000..7a2522b
+--- /dev/null
++++ b/benchmark/benchmark_config.gd.uid
+@@ -0,0 +1 @@
++uid://bmarkcfg00001
+diff --git a/level/forklift/flying_forklift.gd b/level/forklift/flying_forklift.gd
+index f88c6de..c943fdc 100644
+--- a/level/forklift/flying_forklift.gd
++++ b/level/forklift/flying_forklift.gd
+@@ -1,5 +1,6 @@
+ extends Node3D
+ 
++const BenchmarkConfig = preload("res://benchmark/benchmark_config.gd")
+ 
+ @onready var spot_light: SpotLight3D = $SpotLight3D
+ 
+@@ -10,7 +11,9 @@ func _ready() -> void:
+ 
+ 	# Randomize the forklift model.
+ 	# We have 3 models, may as well use them.
+-	randomize()
++	# benchmark mode keeps the seed set before this scene entered the tree.
++	if not BenchmarkConfig.enabled():
++		randomize()
+ 	var children: Array[Node] = get_child(0).get_children()
+ 	var child_count: int = children.size()
+ 	var which_enabled: int = floori(randf() * float(child_count))
+diff --git a/level/level.gd b/level/level.gd
+index 83d5c83..a4b509e 100644
+--- a/level/level.gd
++++ b/level/level.gd
+@@ -5,6 +5,8 @@ signal quit
+ 
+ const RedRobot: PackedScene = preload("res://enemies/red_robot/red_robot.tscn")
+ const PlayerScene: PackedScene = preload("res://player/player.tscn")
++const BenchmarkConfig = preload("res://benchmark/benchmark_config.gd")
++const BenchmarkCamera = preload("res://benchmark/benchmark_camera.gd")
+ 
+ var lightmap_gi: LightmapGI = null
+ 
+@@ -29,17 +31,29 @@ func _ready() -> void:
+ 		for child in robot_spawn_points.get_children():
+ 			spawn_robot(child)
+ 
+-		# Then spawn already connected players at random location
+-		randomize()
+ 		var spawn_points = player_spawn_points.get_children()
+-		spawn_points.shuffle()
+-		add_player(1, spawn_points.pop_front())
+-		for id in multiplayer.get_peers():
+-			add_player(id, spawn_points.pop_front())
+-
+-		# Then spawn/despawn players as they connect/disconnect
+-		multiplayer.peer_connected.connect(add_player)
+-		multiplayer.peer_disconnected.connect(del_player)
++		if BenchmarkConfig.enabled():
++			# first spawn point, no shuffle, so the scene seed stays fixed
++			add_player(1, spawn_points[0])
++			BenchmarkCamera.attach(self)
++			BenchmarkConfig.apply_window()
++			$Debug.hide()
++			$Debug.set_process(false)
++			if BenchmarkConfig.user_value("--bench-probes") == "off":
++				# lightmap stays. this only removes the probe nodes.
++				$ReflectionProbes.hide()
++			_apply_bench_isolation()
++		else:
++			# Then spawn already connected players at random location
++			randomize()
++			spawn_points.shuffle()
++			add_player(1, spawn_points.pop_front())
++			for id in multiplayer.get_peers():
++				add_player(id, spawn_points.pop_front())
++
++			# Then spawn/despawn players as they connect/disconnect
++			multiplayer.peer_connected.connect(add_player)
++			multiplayer.peer_disconnected.connect(del_player)
+ 
+ 
+ func setup_sdfgi() -> void:
+@@ -93,6 +107,109 @@ func setup_lightmapgi() -> void:
+ 		$ReflectionProbes.hide()
+ 
+ 
++func _apply_bench_isolation() -> void:
++	var geo := BenchmarkConfig.user_value("--bench-geo")
++	if geo == "structure":
++		$Structure.hide()
++	elif geo == "props":
++		$Props.hide()
++	elif geo == "core":
++		$Core.hide()
++	elif geo == "forklifts":
++		$FlyingForklifts.hide()
++	var hidden := 0
++	var mixed := 0
++	var overrides := 0
++	if BenchmarkConfig.user_value("--bench-pass") == "opaque":
++		var counts: Array[int] = _hide_blended_meshes(self)
++		hidden = counts[0]
++		mixed = counts[1]
++	var shade := BenchmarkConfig.user_value("--bench-shade")
++	if shade == "flat":
++		overrides = _apply_flat_materials(self)
++	elif shade == "flat-structure":
++		overrides = _apply_flat_materials($Structure)
++	print("BENCH_ISOLATE pass=%s shade=%s geo=%s hidden_meshes=%d mixed_meshes=%d flat_overrides=%d" % [
++		BenchmarkConfig.user_value("--bench-pass"),
++		BenchmarkConfig.user_value("--bench-shade"),
++		geo,
++		hidden,
++		mixed,
++		overrides,
++	])
++
++
++func _apply_flat_materials(root: Node) -> int:
++	# same meshes and coverage, no textures and no lighting.
++	var mat := StandardMaterial3D.new()
++	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
++	mat.albedo_color = Color(0.72, 0.72, 0.72)
++	return _override_meshes(root, mat)
++
++
++func _override_meshes(node: Node, mat: Material) -> int:
++	var count := 0
++	if node is MeshInstance3D:
++		(node as MeshInstance3D).material_override = mat
++		count += 1
++	for child in node.get_children():
++		count += _override_meshes(child, mat)
++	return count
++
++
++func _hide_blended_meshes(node: Node) -> Array[int]:
++	var hidden := 0
++	var mixed := 0
++	if node is MeshInstance3D:
++		var mesh_inst: MeshInstance3D = node as MeshInstance3D
++		var kind := _blend_kind(mesh_inst)
++		if kind == 2:
++			mesh_inst.visible = false
++			hidden += 1
++		elif kind == 1:
++			mixed += 1
++	for child in node.get_children():
++		var nested: Array[int] = _hide_blended_meshes(child)
++		hidden += nested[0]
++		mixed += nested[1]
++	var out: Array[int] = [hidden, mixed]
++	return out
++
++
++func _blend_kind(mesh_inst: MeshInstance3D) -> int:
++	# 0 none, 1 mixed, 2 every surface is alpha blended.
++	var mesh: Mesh = mesh_inst.mesh
++	if mesh == null:
++		return 0
++	var surfaces := mesh.get_surface_count()
++	if surfaces == 0:
++		return 0
++	var blended := 0
++	for i in surfaces:
++		var mat: Material = mesh_inst.get_surface_override_material(i)
++		if mat == null:
++			mat = mesh.surface_get_material(i)
++		if _material_is_blended(mat):
++			blended += 1
++	if blended == 0:
++		return 0
++	if blended == surfaces:
++		return 2
++	return 1
++
++
++func _material_is_blended(mat: Material) -> bool:
++	if mat == null:
++		return false
++	if mat is BaseMaterial3D:
++		var mode: int = (mat as BaseMaterial3D).transparency
++		return mode == BaseMaterial3D.TRANSPARENCY_ALPHA or mode == BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
++	if mat is ShaderMaterial:
++		var path := mat.resource_path
++		return path.ends_with("light_shafts.tres") or path.ends_with("tile_glass.tres") or path.ends_with("scifi_car_glass.tres")
++	return false
++
++
+ func spawn_robot(spawn_point) -> void:
+ 	var robot: CharacterBody3D = RedRobot.instantiate()
+ 	robot.transform = spawn_point.transform
+@@ -122,6 +239,8 @@ func add_player(id: int, spawn_point: Marker3D = null) -> void:
+ 
+ 
+ func _input(input_event: InputEvent) -> void:
++	if BenchmarkConfig.enabled():
++		return
+ 	if input_event.is_action_pressed(&"quit"):
+ 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+ 		quit.emit()
+diff --git a/main/main.gd b/main/main.gd
+index bd99a9d..fe499a9 100644
+--- a/main/main.gd
++++ b/main/main.gd
+@@ -1,8 +1,20 @@
+ extends Node
+ 
++const BenchmarkConfig = preload("res://benchmark/benchmark_config.gd")
++
+ 
+ func _ready() -> void:
+ 	multiplayer.server_relay = false
++	if BenchmarkConfig.enabled():
++		seed(BenchmarkConfig.SEED)
++		BenchmarkConfig.prepare_settings()
++		var level: PackedScene = load("res://level/level.tscn")
++		if level == null:
++			print("BENCHMARK_FAIL level_load")
++			get_tree().quit(1)
++			return
++		change_scene_to_packed(level)
++		return
+ 	if DisplayServer.get_name() == "headless":
+ 		Engine.max_fps = 60
+ 	randomize()
+diff --git a/player/player_input.gd b/player/player_input.gd
+index e062ebf..d1befae 100644
+--- a/player/player_input.gd
++++ b/player/player_input.gd
+@@ -1,6 +1,8 @@
+ class_name PlayerInputSynchronizer
+ extends MultiplayerSynchronizer
+ 
++const BenchmarkConfig = preload("res://benchmark/benchmark_config.gd")
++
+ const CAMERA_CONTROLLER_ROTATION_SPEED: float = 3.0
+ const CAMERA_MOUSE_ROTATION_SPEED: float = 0.001
+ # A minimum angle lower than or equal to -90 breaks movement if the player is looking upward.
+@@ -36,6 +38,13 @@ var aiming_timer: float = 0.0
+ 
+ 
+ func _ready() -> void:
++	if BenchmarkConfig.enabled():
++		set_process(false)
++		set_process_input(false)
++		crosshair.hide()
++		color_rect.hide()
++		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
++		return
+ 	if get_multiplayer_authority() == multiplayer.get_unique_id():
+ 		camera_camera.make_current()
+ 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
